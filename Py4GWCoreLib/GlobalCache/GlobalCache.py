@@ -1,12 +1,12 @@
 
 from Py4GWCoreLib import ThrottledTimer
 from Py4GWCoreLib.Py4GWcorelib import ActionQueueManager
-from Py4GWCoreLib import RawAgentArray
+
 from Py4GWCoreLib import Map
+from Py4GWCoreLib import Agent
 
 from .PlayerCache import PlayerCache
 
-from .AgentCache import AgentCache
 
 from .CameraCache import CameraCache
 from .EffectCache import EffectsCache
@@ -33,11 +33,9 @@ class GlobalCache:
     def _init_namespaces(self):
         self._ActionQueueManager = ActionQueueManager()
         self._TrottleTimers = self.TrottleTimers()
-        self._RawAgentArray = RawAgentArray()
+
         self._RawItemCache = RawItemCache()
         self.Player = PlayerCache(self._ActionQueueManager)
-   
-        self.Agent = AgentCache()
 
         self.Camera = CameraCache(self._ActionQueueManager)
         self.Effects = EffectsCache()
@@ -54,9 +52,9 @@ class GlobalCache:
         
       
     def _reset(self):
-        self.Agent._reset_cache()
+        Agent._reset_cache()
         self.Effects._reset_cache()
-        self._RawAgentArray.reset()
+
         self.Item._reset_cache()
         self._TrottleTimers.Reset()
         
@@ -68,8 +66,8 @@ class GlobalCache:
             self.Player._update_cache()
             self._RawItemCache.update()
             self.Item._update_cache()
-            self._RawAgentArray.update()
-            self.Agent._update_cache()
+
+            Agent._update_cache()
 
             self.SkillBar._update_cache()
         #end force update block
@@ -90,8 +88,7 @@ class GlobalCache:
                 self.Camera._update_cache()
 
              
-            self._RawAgentArray.update()
-            self.Agent._update_cache()
+            Agent._update_cache()
 
             self.SkillBar._update_cache()
             
