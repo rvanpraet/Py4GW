@@ -144,6 +144,7 @@ def on_death(bot: Botting):
     ConsoleLog("Death detected", "Player Died - Run Failed, Restarting...", Py4GW.Console.MessageType.Notice)
 
     # Reset Action Queues and FSM
+    ResetUnopenedChests()
     ActionQueueManager().ResetAllQueues()
     fsm = bot.config.FSM
     fsm.pause()
