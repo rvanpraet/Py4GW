@@ -37,12 +37,12 @@ class DervSpiderFarmer(BuildMgr):
             name=BUILD_NAME,
             required_primary=Profession.Dervish,
             required_secondary=Profession.Monk,
-            template_code='OgOjkOrMLTmXfbcX0XyDqisX0kA',
+            template_code='OgOjkOrMLTmXfbcXebyDqisX0kA',
             skills=[
                 GLOBAL_CACHE.Skill.GetID("Sand_Shards"),
                 GLOBAL_CACHE.Skill.GetID("Vow_of_Strength"),
                 GLOBAL_CACHE.Skill.GetID("Mirage_Cloak"),
-                GLOBAL_CACHE.Skill.GetID("Holy_Veil"),
+                GLOBAL_CACHE.Skill.GetID("Harriers_Grasp"),
                 GLOBAL_CACHE.Skill.GetID("Balthazars_Spirit"),
                 GLOBAL_CACHE.Skill.GetID("Drunken_Master"),
                 GLOBAL_CACHE.Skill.GetID("Mystic_Regeneration"),
@@ -58,7 +58,7 @@ class DervSpiderFarmer(BuildMgr):
         self.sand_shards = self.skills[0]
         self.vow_of_strength = self.skills[1]
         self.mirage_cloak = self.skills[2]
-        self.holy_veil = self.skills[3]
+        self.harriers_grasp = self.skills[3]
         self.balthazars_spirit = self.skills[4]
         self.drunken_master = self.skills[5]
         self.mystic_regen = self.skills[6]
@@ -126,20 +126,28 @@ class DervSpiderFarmer(BuildMgr):
         player_agent_id = GLOBAL_CACHE.Player.GetAgentID()
         (px, py) = GLOBAL_CACHE.Player.GetXY()
 
-        if Agent.IsCrippled(player_agent_id) or self.build_danger_helper.check_cripple_kd(px, py):
-            has_iau = Routines.Checks.Effects.HasBuff(player_agent_id, self.i_am_unstoppable)
-            has_mirage_cloak = Routines.Checks.Effects.HasBuff(player_agent_id, self.mirage_cloak)
-            is_iau_ready = yield from Routines.Yield.Skills.IsSkillIDUsable(self.i_am_unstoppable)
-            is_mirage_cloak_ready = yield from Routines.Yield.Skills.IsSkillIDUsable(self.mirage_cloak)
+        has_iau = Routines.Checks.Effects.HasBuff(player_agent_id, self.i_am_unstoppable)
+        is_iau_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.i_am_unstoppable)
 
-            if is_iau_ready and not has_iau:
+        if Agent.IsCrippled(player_agent_id) or self.build_danger_helper.check_cripple_kd(px, py):
+            has_mirage_cloak = Routines.Checks.Effects.HasBuff(player_agent_id, self.mirage_cloak)
+            is_mirage_cloak_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.mirage_cloak)
+
+            if is_iau_usable and not has_iau:
                 yield from Routines.Yield.Skills.CastSkillID(self.i_am_unstoppable, aftercast_delay=200)
 
-            if is_mirage_cloak_ready and not has_mirage_cloak:
+            if is_mirage_cloak_usable and not has_mirage_cloak:
                 yield from Routines.Yield.Skills.CastSkillID(self.mirage_cloak, aftercast_delay=200)
 
-        else:
-            yield None
+        # Anti cripple when IAU is down
+        if Agent.IsCrippled(player_agent_id) and not has_iau and not is_iau_usable:
+            has_harriers_grasp = Routines.Checks.Effects.HasBuff(player_agent_id, self.harriers_grasp)
+            is_harriers_grasp_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.harriers_grasp)
+
+            if is_harriers_grasp_usable and not has_harriers_grasp:
+                yield from Routines.Yield.Skills.CastSkillID(self.harriers_grasp, aftercast_delay=200)
+
+        yield None
 
 
     # While in kill mode, detect nearby enemies and spike
@@ -210,16 +218,11 @@ class DervSpiderFarmer(BuildMgr):
 
                 # Checks for defensive buffs
                 has_balth_spirit = Routines.Checks.Effects.HasBuff(GLOBAL_CACHE.Player.GetAgentID(), self.balthazars_spirit)
-                has_holy_veil = Routines.Checks.Effects.HasBuff(GLOBAL_CACHE.Player.GetAgentID(), self.holy_veil)
                 is_balth_spirit_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.balthazars_spirit)
-                is_holy_veil_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.holy_veil)
 
                 # Apply defensive buffs if not already present
                 if is_balth_spirit_usable and not has_balth_spirit:
                     yield from Routines.Yield.Skills.CastSkillID(self.balthazars_spirit, aftercast_delay=1250)
-            
-                if is_holy_veil_usable and not has_holy_veil:
-                    yield from Routines.Yield.Skills.CastSkillID(self.holy_veil, aftercast_delay=750)
             
 
             # General buff application during Move, Ball, and Kill statuses

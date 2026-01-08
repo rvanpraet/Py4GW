@@ -31,7 +31,7 @@ magus_stone_cripple_danger_table: DangerTable = (
 
 is_farming = False
 is_looting = False
-item_id_blacklist = []
+item_id_blacklist: list[int] = []
 
 bot = Botting(
     SCRIPT_NAME,
@@ -109,12 +109,12 @@ def MagusStoneRoutine(bot: Botting) -> None:
     # bot.Party.FlagAllHeroes(17070.32, 12985.33)
 
     # Set combat routine
-    # bot.config.set_pause_on_danger_fn(detect_spider_or_loot)
-    # bot.Properties.Enable('alcohol')
+    bot.config.set_pause_on_danger_fn(pause_on_danger_fn)
+    bot.Properties.Enable('auto_combat')
+    bot.Properties.Enable('pause_on_danger')
     bot.States.AddCustomState(lambda: stuck_helper.Toggle(True), "Activate Stuck Helper")
     bot.States.AddManagedCoroutine("Run Stuck Handler", run_stuck_helper)
     bot.States.AddManagedCoroutine("Setup loot handler", lambda: handle_loot(bot))
-    bot.Properties.Enable('auto_combat')
     bot.States.AddCustomState(lambda: use_alcohol(), "Use Alcohol")
     bot.Wait.ForTime(5000) # Wait for buffs to cast
 
@@ -191,29 +191,25 @@ def handle_stuck():
     yield from Routines.Yield.wait(500)
 
 
-# # Function passed to the pause_on_danger handler of the bot
-# def pause_on_danger_fn():
-#     '''Detects if there are any enemies or viable loot in the vicinity.'''
-#     global item_id_blacklist
+# Function passed to the pause_on_danger handler of the bot
+def pause_on_danger_fn():
+    '''Detects if there is viable loot in the vicinity.'''
+    global item_id_blacklist
 
-#     build = bot.config.build_handler
-#     if isinstance(build, DervSpiderFarmer) and build.status not in [DervBuildFarmStatus.Kill, DervBuildFarmStatus.Loot]:
-#         return False
+    build = bot.config.build_handler
+    if isinstance(build, DervSpiderFarmer) and build.status not in [DervBuildFarmStatus.Kill, DervBuildFarmStatus.Loot]:
+        return False
 
-#     enemy_array = get_enemy_array(custom_range=Range.Earshot.value)
-#     if enemy_array:
-#         return True
+    is_valuable_loot_in_range = get_valid_loot_array()
+    if not is_valuable_loot_in_range or len(is_valuable_loot_in_range) == 0:
+        return False
 
-#     # filtered_agent_ids = get_valid_loot_array(viable_loot=[])
-#     # if not filtered_agent_ids:
-#     #     return False
+    filtered_agent_ids = [agent_id for agent_id in is_valuable_loot_in_range if agent_id not in set(item_id_blacklist)]
 
-#     # filtered_agent_ids = [agent_id for agent_id in filtered_agent_ids if agent_id not in set(item_id_blacklist)]
+    if not filtered_agent_ids or len(filtered_agent_ids) == 0:
+        return False
 
-#     # if not filtered_agent_ids:
-#     #     return False
-
-#     # return True
+    return True
 
 
 # Coroutine function to handle farming
@@ -311,7 +307,7 @@ def loot_items(loot_array: list[int]):
 
     failed_items_id = yield from Routines.Yield.Items.LootItemsWithMaxAttempts(loot_array, log=True)
     if failed_items_id:
-        item_id_blacklist = item_id_blacklist.append(failed_items_id)
+        item_id_blacklist = item_id_blacklist + failed_items_id
 
     ConsoleLog(SCRIPT_NAME, 'Looting items finished')
     yield from Routines.Yield.wait(1000)  # Wait for a moment after finishing looting
