@@ -121,23 +121,25 @@ def MagusStoneRoutine(bot: Botting) -> None:
     # bot.Properties.Enable("pause_on_danger")
 
     # Follow the path
-    for x,y,status in path_1:
+    for x,y,status,wait_time in path_1:
         bot.Move.XY(x, y)
         bot.States.AddCustomState(lambda bot=bot, status=status: set_bot_status(bot, status), f"Set Build Status to {status}")
+        bot.Wait.ForTime(wait_time)
 
     # Execute farm routine
     bot.States.AddCustomState(lambda: execute_farm_routine(bot), "Execute Farm Routine 1")
 
     # Second part of the path
-    for x,y,status in path_2:
+    for x,y,status,wait_time in path_2:
         bot.Move.XY(x, y)
         bot.States.AddCustomState(lambda bot=bot, status=status: set_bot_status(bot, status), f"Set Build Status to {status}")
+        bot.Wait.ForTime(wait_time)
     
     # Execute farm routine
     bot.States.AddCustomState(lambda: execute_farm_routine(bot), "Execute Farm Routine 1")
-
     bot.Wait.ForTime(1000)
-    bot.Party.Resign()
+    bot.States.AddCustomState(lambda: set_bot_status(bot, DervBuildFarmStatus.Wait), "Waiting to return")
+    bot.States.AddCustomState(lambda: wait_for_loot_to_finish(), "Wait for loot to finish")
 
 
 # Reset the farm loop to run Magus Stone farm again
@@ -149,11 +151,10 @@ def ResetFarmLoop(bot: Botting):
 
     # MysticHealingSupport.RemoveHeroComanagedRoutines(bot, hero_list=hero_list)
     bot.States.AddCustomState(reset_item_blacklist, "Reset Opened Chests List")
-    bot.States.AddCustomState(lambda status=DervBuildFarmStatus.Wait: set_bot_status(bot, status), "Waiting to return")
 
 
     bot.Party.Resign()
-    bot.Wait.ForTime(3000)
+    # bot.Wait.ForTime(3000)
     bot.Wait.UntilCondition(lambda: Agent.IsDead(GLOBAL_CACHE.Player.GetAgentID()))
     # bot.States.AddCustomState(lambda: AssessLootManagement(), "Loot management check")
     # bot.Wait.ForTime(10000)
@@ -202,22 +203,17 @@ def pause_on_danger_fn():
     global item_id_blacklist
 
     build = bot.config.build_handler
-    if isinstance(build, DervSpiderFarmer) and build.status not in [DervBuildFarmStatus.Kill, DervBuildFarmStatus.Loot]:
-        ConsoleLog(SCRIPT_NAME, f'Pause on danger False because :::: NOT IN KILLING OR LOOTING STATUS ::: Current Status: {build.status}')
+    if isinstance(build, DervSpiderFarmer) and build.status not in [DervBuildFarmStatus.Kill, DervBuildFarmStatus.Loot, DervBuildFarmStatus.Move, DervBuildFarmStatus.Wait]:
         return False
 
     valuable_loot_array = get_valid_loot_array()
     if not valuable_loot_array or len(valuable_loot_array) == 0:
-        ConsoleLog(SCRIPT_NAME, f'Pause on danger False because :::: NO VALUABLE LOOT IN RANGE')
         return False
 
     filtered_agent_ids = [agent_id for agent_id in valuable_loot_array if agent_id not in set(item_id_blacklist)]
-
     if not filtered_agent_ids or len(filtered_agent_ids) == 0:
-        ConsoleLog(SCRIPT_NAME, f'Pause on danger False because :::: NO VALUABLE LOOT IN RANGE FILTERED BY BLACKLIST')
         return False
 
-    ConsoleLog(SCRIPT_NAME, f'Pause on danger TRUE')
     return True
 
 
@@ -242,6 +238,9 @@ def execute_farm_routine(bot):
     timeout_timer = ThrottledTimer(30000) # 30sec
     timeout_timer.Start()
 
+    single_remaining_mob_timer = ThrottledTimer(10000) # Try to kill last remaining mob for 10sec
+    single_remaining_mob_timer.Stop()
+
     player_id = GLOBAL_CACHE.Player.GetAgentID()
 
     while True:
@@ -250,6 +249,17 @@ def execute_farm_routine(bot):
             bot.config.build_handler.status = DervBuildFarmStatus.Move
             yield None
             break  # all fog_nightmares dead
+
+        if len(enemy_array) == 1:
+            if single_remaining_mob_timer.IsStopped():
+                single_remaining_mob_timer.Start()
+
+            elif single_remaining_mob_timer.IsExpired():
+                ConsoleLog(SCRIPT_NAME, 'Single remaining mob timeout, setting back to [Move] status')
+                bot.config.build_handler.status = DervBuildFarmStatus.Move
+                yield None
+                break
+
 
         # Timeout check
         if timeout_timer.IsExpired():
@@ -291,7 +301,7 @@ def handle_loot(bot: Botting):
         if (
             Map.GetMapID() == MAGUS_STONE and
             isinstance(bot.config.build_handler, DervSpiderFarmer) and
-            bot.config.build_handler.status == DervBuildFarmStatus.Move
+            bot.config.build_handler.status in [DervBuildFarmStatus.Move, DervBuildFarmStatus.Wait]
         ):
             # Get the loot specified in the loot util file, continue with looting if any found
             valid_loot_array = get_valid_loot_array()
@@ -324,6 +334,11 @@ def loot_items(loot_array: list[int]):
     ConsoleLog(SCRIPT_NAME, 'Looting items finished')
     yield from Routines.Yield.wait(1000)  # Wait for a moment after finishing looting
 
+
+def wait_for_loot_to_finish():
+    global is_looting
+    while is_looting:
+        yield from Routines.Yield.wait(500)
 
 
 
@@ -394,14 +409,14 @@ if __name__ == "__main__":
 
 path_1 = [
     #normal running routine
-    (17561.23, 7616.28, DervBuildFarmStatus.Move), # Before first spider group
-    (19078.75, 4208.01, DervBuildFarmStatus.Move), # After first spider group
+    (17561.23, 7616.28, DervBuildFarmStatus.Move, 0), # Before first spider group
+    (19078.75, 4208.01, DervBuildFarmStatus.Move, 0), # After first spider group
 
     #balling running routine
-    (19004.04, 3309.77, DervBuildFarmStatus.Ball), # First back n forth to ball spider group 1
-    (18504.34, 3394.30, DervBuildFarmStatus.Ball),
-    (19004.04, 3309.77, DervBuildFarmStatus.Ball), # Second back n forth to ball spider group 2
-    (18504.34, 3394.30, DervBuildFarmStatus.Kill),
+    (19004.04, 3309.77, DervBuildFarmStatus.Ball, 0), # First back n forth to ball spider group 1
+    (18504.34, 3394.30, DervBuildFarmStatus.Ball, 0),
+    (19004.04, 3309.77, DervBuildFarmStatus.Ball, 0), # Second back n forth to ball spider group 2
+    (18504.34, 3394.30, DervBuildFarmStatus.Kill, 0),
 
 
     # (18470.39, 3916.44, DervBuildFarmStatus.Kill), # Backup
@@ -410,22 +425,23 @@ path_1 = [
 ]
 
 path_2  = [
-    (18768.15, 2279.14, DervBuildFarmStatus.Move), # After killing first group to before narrow path
-    (17911.47, 1191.82, DervBuildFarmStatus.Move), # Leaving after killing first group to before narrow path
+    (18768.15, 2279.14, DervBuildFarmStatus.Move, 0), # After killing first group to before narrow path
+    (17911.47, 1191.82, DervBuildFarmStatus.Move, 0), # Leaving after killing first group to before narrow path
 
     # Insert back and forth to clear the narrow path
-    (17580.91, 844.03, DervBuildFarmStatus.Move), # Maybe wait here for a bit
-    (17952.61, 1345.80, DervBuildFarmStatus.Move),
+    (17580.91, 844.03, DervBuildFarmStatus.Move, 1000), # Maybe wait here for a bit
+    (17952.61, 1345.80, DervBuildFarmStatus.Move, 1000),
 
-    (17665.95, 185.75, DervBuildFarmStatus.Move), # Hug left side of narrow path
-    (17560.50, -342.79, DervBuildFarmStatus.Move), # More left side of narrow path
-    (17279.21, -687.44, DervBuildFarmStatus.Move), # After narrow path
+    (17665.95, 185.75, DervBuildFarmStatus.Ball, 0), # Hug left side of narrow path
+    # (17560.50, -342.79, DervBuildFarmStatus.Move, 0), # More left side of narrow path
+    # (17279.21, -687.44, DervBuildFarmStatus.Ball, 0), # After narrow path
 
 
-    (17543.69, -3031.16, DervBuildFarmStatus.Ball), # First back n forth to ball spider group 2
-    (17221.04, -3275.86, DervBuildFarmStatus.Ball), # 
-    (17543.69, -3031.16, DervBuildFarmStatus.Ball), # Second back n forth to ball spider group 2
-    (16925.17, -2726.17, DervBuildFarmStatus.Kill), # Last stop before killing routine
+    (17543.69, -3031.16, DervBuildFarmStatus.Ball, 0), # First back n forth to ball spider group 2
+    # (17221.04, -3275.86, DervBuildFarmStatus.Ball, 0), # 
+    (16925.17, -2726.17, DervBuildFarmStatus.Ball, 0),
+    (17543.69, -3031.16, DervBuildFarmStatus.Ball, 0), # Second back n forth to ball spider group 2
+    (16925.17, -2726.17, DervBuildFarmStatus.Kill, 0), # Last stop before killing routine
 
     #kill spiders
     #loot

@@ -14,7 +14,7 @@ from Py4GWCoreLib import Profession
 from Py4GWCoreLib import Range
 from Py4GWCoreLib import Routines
 from Py4GWCoreLib import Weapon
-from Py4GWCoreLib import Agent
+from Py4GWCoreLib import Agent, AgentArray
 from Py4GWCoreLib.Builds.AutoCombat import AutoCombat
 from Py4GWCoreLib.Builds.BuildHelpers import BuildDangerHelper
 from Py4GWCoreLib.py4gwcorelib_src.Console import ConsoleLog
@@ -113,11 +113,14 @@ class DervSpiderFarmer(BuildMgr):
         agent_ids = Routines.Agents.GetFilteredEnemyArray(player_pos[0], player_pos[1], Range.Earshot.value)
         target = 0
 
-        for agent_id in agent_ids:
-            if self._is_target_correct_model_id(agent_id, AgentModelID.SPIDER):
-                target = agent_id
+        target_arr = [target_id for target_id in agent_ids if self._is_target_correct_model_id(target_id, AgentModelID.SPIDER)]
+        target_arr = AgentArray.Sort.ByDistance(target_arr, player_pos) 
 
-        return target
+        # for agent_id in agent_ids:
+        #     if self._is_target_correct_model_id(agent_id, AgentModelID.SPIDER):
+        #         target = agent_id
+
+        return target_arr[0] if target_arr else 0
 
 
     # Watcher routines
