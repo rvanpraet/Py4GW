@@ -65,13 +65,15 @@ def SetupResign(bot: Botting):
 def MagusStoneRoutine(bot: Botting) -> None:
     bot.States.AddHeader("Running Routine")
     bot.Move.XYAndExitMap(16387.96, 13047.04, target_map_id=MAGUS_STONE) # target_map_name="Barbarous Shore"
-    bot.Wait.ForTime(1000)
+    bot.Wait.ForMapLoad(MAGUS_STONE)
     # MysticHealingSupport.InitHeroComanagedRoutines(bot, hero_list=hero_list)
     # bot.Party.FlagAllHeroes(17070.32, 12985.33)
 
     # Set combat routine
     # bot.config.set_pause_on_danger_fn(detect_spider_or_loot)
     bot.Properties.Enable('auto_combat')
+    bot.Wait.ForTime(5000) # Wait for buffs to cast
+
     # bot.Properties.Enable("pause_on_danger")
 
     for x,y,status in path:
@@ -97,9 +99,14 @@ def set_bot_status(bot: Botting, status: str) -> None:
 
     ConsoleLog(SCRIPT_NAME, f"Setting bot status to: {status}", Py4GW.Console.MessageType.Info)
 
+
 def detect_enemy_or_loot():
     '''Detects if there are any enemies or viable loot in the vicinity.'''
     global item_id_blacklist
+
+    build = bot.config.build_handler
+    if isinstance(build, DervSpiderFarmer) and build.status not in [DervBuildFarmStatus.Kill, DervBuildFarmStatus.Loot]:
+        return False
 
     enemy_array = get_enemy_array(custom_range=Range.Earshot.value)
     if enemy_array:

@@ -194,6 +194,10 @@ class DervSpiderFarmer(BuildMgr):
             # Skills usable in all phases but dependent on nearby enemies
             yield from self._DefensiveWatcher()
 
+
+            # Throttle loop
+            yield from Routines.Yield.wait(100)
+
         # player_agent_id = GLOBAL_CACHE.Player.GetAgentID()
         # has_dwarven_stability = Routines.Checks.Effects.HasBuff(player_agent_id, self.dwarven_stability)
         # has_mystic_regen = Routines.Checks.Effects.HasBuff(player_agent_id, self.mystic_regen)
