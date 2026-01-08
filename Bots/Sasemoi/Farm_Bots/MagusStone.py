@@ -1,6 +1,9 @@
 from typing import Iterable
 import Py4GW
-from Py4GWCoreLib import Agent, Routines, ConsoleLog, Console
+from Bots.Sasemoi.bot_helpers.bot_stuck_helper import BotStuckHelper
+from Bots.Sasemoi.utils.loot_filter_utils.magus_stone_loot_filters import get_valid_loot_array
+from Bots.marks_coding_corner.utils.loot_utils import is_valid_item
+from Py4GWCoreLib import Agent, AgentArray, Item, Routines, ConsoleLog, Console
 from Py4GWCoreLib import ThrottledTimer
 from Py4GWCoreLib import GLOBAL_CACHE, Map
 from Py4GWCoreLib import Botting, HeroType
@@ -11,7 +14,9 @@ from Py4GWCoreLib.enums_src.GameData_enums import Range
 from Py4GWCoreLib.Builds.BuildHelpers import BuildDangerHelper
 from Py4GWCoreLib.enums_src.Model_enums import ModelID
 from Py4GWCoreLib.py4gwcorelib_src import Utils
+from Py4GWCoreLib.py4gwcorelib_src.ActionQueue import ActionQueueManager
 
+TIMEOUT_MS = 30000
 RATA_SUM = 640
 MAGUS_STONE = 569
 SCRIPT_NAME = "Magus Stone Derv Farm Bot"
@@ -44,6 +49,15 @@ bot = Botting(
     config_log_actions=False,
 )
 
+# Would like to move this to Botting
+stuck_helper = BotStuckHelper(
+    config={
+        "log_enabled": False,
+        "movement_timeout_ms": TIMEOUT_MS,
+        "movement_timeout_handler": lambda: handle_stuck()
+    }
+)
+
 # hero_list = [
 #     HeroType.Gwen,
 #     HeroType.MOX,
@@ -61,11 +75,22 @@ def create_bot_routine(bot: Botting) -> None:
     InitBot(bot)
     SetupResign(bot)
     MagusStoneRoutine(bot)
+    ResetFarmLoop(bot)
 
 
 def InitBot(bot: Botting) -> None:
     bot.States.AddHeader("Init Party")
     bot.Map.Travel(RATA_SUM)
+    
+    # Death callback
+    condition = lambda: on_death(bot)
+    bot.Events.OnDeathCallback(condition)
+    bot.Properties.Enable("halt_on_death")
+    bot.Properties.Disable("auto_loot")
+    bot.Properties.Disable("hero_ai")
+    bot.Properties.Disable("auto_combat")
+    bot.Properties.Disable("pause_on_danger")
+
     # MysticHealingSupport.SetupHealingParty(bot, hero_list=hero_template_list)
 
 def SetupResign(bot: Botting):
@@ -77,6 +102,7 @@ def SetupResign(bot: Botting):
 
 def MagusStoneRoutine(bot: Botting) -> None:
     bot.States.AddHeader("Running Routine")
+    bot.States.AddCustomState(lambda: set_bot_status(bot, DervBuildFarmStatus.Setup), "Set Build Status to Setup")
     bot.Move.XYAndExitMap(16387.96, 13047.04, target_map_id=MAGUS_STONE) # target_map_name="Barbarous Shore"
     bot.Wait.ForMapLoad(MAGUS_STONE)
     # MysticHealingSupport.InitHeroComanagedRoutines(bot, hero_list=hero_list)
@@ -85,8 +111,11 @@ def MagusStoneRoutine(bot: Botting) -> None:
     # Set combat routine
     # bot.config.set_pause_on_danger_fn(detect_spider_or_loot)
     # bot.Properties.Enable('alcohol')
+    bot.States.AddCustomState(lambda: stuck_helper.Toggle(True), "Activate Stuck Helper")
+    bot.States.AddManagedCoroutine("Run Stuck Handler", run_stuck_helper)
+    bot.States.AddManagedCoroutine("Setup loot handler", lambda: handle_loot(bot))
     bot.Properties.Enable('auto_combat')
-    bot.States.AddCustomState(lambda: use_alcohol(), "Use Eggnog")
+    bot.States.AddCustomState(lambda: use_alcohol(), "Use Alcohol")
     bot.Wait.ForTime(5000) # Wait for buffs to cast
 
     # bot.Properties.Enable("pause_on_danger")
@@ -111,40 +140,83 @@ def MagusStoneRoutine(bot: Botting) -> None:
     bot.Party.Resign()
 
 
+# Reset the farm loop to run Magus Stone farm again
+def ResetFarmLoop(bot: Botting):
+    bot.States.AddHeader("Reset Farm Loop")
+    bot.Properties.Disable("auto_combat")
+    bot.States.AddCustomState(lambda: stuck_helper.Toggle(False), "Deactivate Stuck Helper")
+    bot.States.RemoveManagedCoroutine("Run Stuck Handler")
+
+    # MysticHealingSupport.RemoveHeroComanagedRoutines(bot, hero_list=hero_list)
+    bot.States.AddCustomState(reset_item_blacklist, "Reset Opened Chests List")
+    bot.Party.Resign()
+    # bot.States.AddCustomState(lambda: AssessLootManagement(), "Loot management check")
+    # bot.Wait.ForTime(10000)
+    # bot.States.AddCustomState(lambda: ConditionallyMoveToMerchant(), "Move to merchant for inventory check")
+    # bot.States.AddCustomState(lambda: ManageInventory(bot), "Manage management execution")
+    # bot.States.JumpToStepName("[H]Barbarous Shore Running_6")
+
+
 #region main methods
-def set_bot_status(bot: Botting, status: str):
-    '''Sets the bot's build status to the specified status.'''
+# On Death Callback Routine
+def _on_death(bot: Botting):
+    yield from Routines.Yield.wait(1000)
+    yield from Routines.Yield.Player.Resign()
+    yield from reset_item_blacklist()
+    yield from Routines.Yield.wait(10000)  # Wait for death to complete
 
-    build = bot.config.build_handler
-    if build is not None and isinstance(build, DervSpiderFarmer):
-        yield from build.SetStatus(status)
-        # build.status = status
+    fsm = bot.config.FSM
+    fsm.jump_to_state_by_name("[H]Running Routine_3") 
+    fsm.resume()                           
+    yield  
 
 
+def on_death(bot: Botting):
+    ConsoleLog("Death detected", "Player Died - Run Failed, Restarting...", Py4GW.Console.MessageType.Notice)
 
-def detect_enemy_or_loot():
-    '''Detects if there are any enemies or viable loot in the vicinity.'''
-    global item_id_blacklist
+    # Reset Action Queues and FSM
+    ActionQueueManager().ResetAllQueues()
+    fsm = bot.config.FSM
+    fsm.pause()
+    fsm.RemoveManagedCoroutine("Run Stuck Handler")
+    fsm.AddManagedCoroutine("OnDeath", _on_death(bot))
 
-    build = bot.config.build_handler
-    if isinstance(build, DervSpiderFarmer) and build.status not in [DervBuildFarmStatus.Kill, DervBuildFarmStatus.Loot]:
-        return False
 
-    enemy_array = get_enemy_array(custom_range=Range.Earshot.value)
-    if enemy_array:
-        return True
+def run_stuck_helper():
+    yield from stuck_helper.Run()
 
-    # filtered_agent_ids = get_valid_loot_array(viable_loot=[])
-    # if not filtered_agent_ids:
-    #     return False
 
-    # filtered_agent_ids = [agent_id for agent_id in filtered_agent_ids if agent_id not in set(item_id_blacklist)]
+def handle_stuck():
+    yield from Routines.Yield.Player.Resign()
+    yield from Routines.Yield.wait(500)
 
-    # if not filtered_agent_ids:
-    #     return False
 
-    # return True
+# # Function passed to the pause_on_danger handler of the bot
+# def pause_on_danger_fn():
+#     '''Detects if there are any enemies or viable loot in the vicinity.'''
+#     global item_id_blacklist
 
+#     build = bot.config.build_handler
+#     if isinstance(build, DervSpiderFarmer) and build.status not in [DervBuildFarmStatus.Kill, DervBuildFarmStatus.Loot]:
+#         return False
+
+#     enemy_array = get_enemy_array(custom_range=Range.Earshot.value)
+#     if enemy_array:
+#         return True
+
+#     # filtered_agent_ids = get_valid_loot_array(viable_loot=[])
+#     # if not filtered_agent_ids:
+#     #     return False
+
+#     # filtered_agent_ids = [agent_id for agent_id in filtered_agent_ids if agent_id not in set(item_id_blacklist)]
+
+#     # if not filtered_agent_ids:
+#     #     return False
+
+#     # return True
+
+
+# Coroutine function to handle farming
 def execute_farm_routine(bot):
     global is_looting
     global is_farming
@@ -162,7 +234,7 @@ def execute_farm_routine(bot):
     is_farming = True
     # bot.config.build_handler.status = DervBuildFarmStatus.Kill
 
-    timeout_timer = ThrottledTimer(120000) # 2 minutes
+    timeout_timer = ThrottledTimer(30000) # 30sec
     timeout_timer.Start()
 
     player_id = GLOBAL_CACHE.Player.GetAgentID()
@@ -198,6 +270,61 @@ def execute_farm_routine(bot):
     yield from Routines.Yield.wait(100)
 
 
+# Coroutine function to handle looting
+def handle_loot(bot: Botting):
+    global is_looting
+    while True:
+        # Wait until map is valid
+        if not Routines.Checks.Map.MapValid() and not Routines.Checks.Map.IsExplorable():
+            yield from Routines.Yield.wait(1000)
+            continue
+
+        if Agent.IsDead(GLOBAL_CACHE.Player.GetAgentID()):
+            yield from Routines.Yield.wait(1000)
+            continue
+
+        if (
+            Map.GetMapID() == MAGUS_STONE and
+            isinstance(bot.config.build_handler, DervSpiderFarmer) and
+            bot.config.build_handler.status == DervBuildFarmStatus.Move
+        ):
+            # Get the loot specified in the loot util file, continue with looting if any found
+            valid_loot_array = get_valid_loot_array()
+            if valid_loot_array and not is_looting:
+                is_looting = True
+                bot.config.build_handler.SetStatus(DervBuildFarmStatus.Loot)
+                yield from loot_items(valid_loot_array)
+                bot.config.build_handler.SetStatus(DervBuildFarmStatus.Move)
+                # log from the last epicenter of the begining of the farm
+                is_looting = False
+
+        # Throttle the loop
+        yield from Routines.Yield.wait(500)
+
+
+# Loot function which loots items and handles blacklist for wanted items unable to loot
+def loot_items(loot_array: list[int]):
+    global item_id_blacklist
+
+    yield from Routines.Yield.wait(1000)  # Wait for a moment before starting to loot
+    ConsoleLog(SCRIPT_NAME, 'Looting items...')
+
+    failed_items_id = yield from Routines.Yield.Items.LootItemsWithMaxAttempts(loot_array, log=True)
+    if failed_items_id:
+        item_id_blacklist = item_id_blacklist.append(failed_items_id)
+
+    ConsoleLog(SCRIPT_NAME, 'Looting items finished')
+    yield from Routines.Yield.wait(1000)  # Wait for a moment after finishing looting
+
+
+
+
+
+
+
+
+
+
 #region helper methods
 def get_enemy_array(custom_range = Range.Area.value * 1.50, detectable_collection: Iterable[int] = []) -> list[int]:
     px, py = GLOBAL_CACHE.Player.GetXY()
@@ -208,11 +335,36 @@ def get_enemy_array(custom_range = Range.Area.value * 1.50, detectable_collectio
         if Agent.GetModelID(agent_id) in detectable_collection
     ]
 
-def get_valid_loot_array(viable_loot=[]):
-    pass
 
+
+def set_bot_status(bot: Botting, status: str):
+    '''Sets the bot's build status to the specified status.'''
+
+    build = bot.config.build_handler
+    if build is not None and isinstance(build, DervSpiderFarmer):
+        yield from build.SetStatus(status)
+        # build.status = status
+
+
+# Reset the blacklisted loot item ids
+def reset_item_blacklist():
+    global item_id_blacklist
+    item_id_blacklist = []
+    yield None
+
+
+# Use alcohol, make more generic to use all sorts of alcohol later
 def use_alcohol():
     yield from Routines.Yield.Items.UseItem(ModelID.Eggnog.value)
+
+
+
+
+
+
+
+
+
 
 #region main
 bot.SetMainRoutine(create_bot_routine)
@@ -262,9 +414,9 @@ path_2  = [
     (17279.21, -687.44, DervBuildFarmStatus.Move), # After narrow path
 
 
-    (17543.69, -3031.16, DervBuildFarmStatus.Move), # First back n forth to ball spider group 2
+    (17543.69, -3031.16, DervBuildFarmStatus.Ball), # First back n forth to ball spider group 2
     (17221.04, -3275.86, DervBuildFarmStatus.Ball), # 
-    (17543.69, -3031.16, DervBuildFarmStatus.Move), # Second back n forth to ball spider group 2
+    (17543.69, -3031.16, DervBuildFarmStatus.Ball), # Second back n forth to ball spider group 2
     (16925.17, -2726.17, DervBuildFarmStatus.Kill), # Last stop before killing routine
 
     #kill spiders

@@ -65,19 +65,9 @@ class DervSpiderFarmer(BuildMgr):
         self.i_am_unstoppable = self.skills[7]
 
         # Build Status
-        self.status = self.SetStatus(DervBuildFarmStatus.Setup)
+        self.status = DervBuildFarmStatus.Setup
         self.spiked = False
         self.spiking = False
-
-    def _swap_to_scythe(self):
-        if Agent.GetWeaponType(Player.GetAgentID())[0] != Weapon.Scythe:
-            Keystroke.PressAndRelease(Key.F1.value)
-            yield
-
-    def _swap_to_shield_set(self):
-        if Agent.GetWeaponType(Player.GetAgentID())[0] == Weapon.Scythe:
-            Keystroke.PressAndRelease(Key.F2.value)
-            yield from Routines.Yield.wait(750)
 
     def SetStatus(self, new_status: str):
         if new_status not in [
@@ -98,6 +88,17 @@ class DervSpiderFarmer(BuildMgr):
         else:
             yield from self._swap_to_shield_set()
 
+    # Helper functions            
+    def _swap_to_scythe(self):
+        if Agent.GetWeaponType(Player.GetAgentID())[0] != Weapon.Scythe:
+            Keystroke.PressAndRelease(Key.F1.value)
+            yield
+
+    def _swap_to_shield_set(self):
+        if Agent.GetWeaponType(Player.GetAgentID())[0] == Weapon.Scythe:
+            Keystroke.PressAndRelease(Key.F2.value)
+            yield from Routines.Yield.wait(750)
+
     def _is_target_correct_model_id(self, agent_id, model_id):
         if not agent_id:
             return False
@@ -107,17 +108,19 @@ class DervSpiderFarmer(BuildMgr):
         return False
 
 
-    def _get_target(self, agent_ids):
-        target = None
+    def _get_next_target(self):
+        player_pos = GLOBAL_CACHE.Player.GetXY()
+        agent_ids = Routines.Agents.GetFilteredEnemyArray(player_pos[0], player_pos[1], Range.Earshot.value)
+        target = 0
 
         for agent_id in agent_ids:
             if self._is_target_correct_model_id(agent_id, AgentModelID.SPIDER):
                 target = agent_id
 
-        if target:
-            return Routines.Agents.GetNearestEnemy(Range.Earshot.value)
+        return target
 
 
+    # Watcher routines
     # Watches dangerous conditions and applies defensive skills as needed
     def _DefensiveWatcher(self):
         player_agent_id = GLOBAL_CACHE.Player.GetAgentID()
@@ -145,24 +148,22 @@ class DervSpiderFarmer(BuildMgr):
             yield None
             return
     
+        # Get the next target
         player_agent_id = GLOBAL_CACHE.Player.GetAgentID()
-        player_pos = GLOBAL_CACHE.Player.GetXY()
-        player_current_energy = Agent.GetEnergy(player_agent_id) * Agent.GetMaxEnergy(player_agent_id)
-
-        # Get next target
-        remaining_enemies = Routines.Agents.GetFilteredEnemyArray(player_pos[0], player_pos[1], Range.Earshot.value)
-        next_target = self._get_target(remaining_enemies)
+        next_target = self._get_next_target()
 
         # No target found, exit
         if not next_target:
             yield None
             return
         
+        # Conditions to cast offensive buffs
         has_sand_shards = Routines.Checks.Effects.HasBuff(player_agent_id, self.sand_shards)
         has_vow_of_strength = Routines.Checks.Effects.HasBuff(player_agent_id, self.vow_of_strength)
         is_sand_shards_usable = Routines.Yield.Skills.IsSkillIDUsable(self.sand_shards)
         is_vow_of_strength_usable = Routines.Yield.Skills.IsSkillIDUsable(self.vow_of_strength)
 
+        # Execute killing
         yield from Routines.Yield.Agents.InteractAgent(next_target)
 
         if is_sand_shards_usable and not has_sand_shards:
@@ -171,10 +172,10 @@ class DervSpiderFarmer(BuildMgr):
         elif is_vow_of_strength_usable and not has_vow_of_strength:
             yield from Routines.Yield.Skills.CastSkillID(self.vow_of_strength, aftercast_delay=1250)
 
-
         yield None
 
     
+    # Override this method from Botting class to handle skill casting
     def ProcessSkillCasting(self):
         while True:
             # Check basic conditions where skill handling should be skipped
