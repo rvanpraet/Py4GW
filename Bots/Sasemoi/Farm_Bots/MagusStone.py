@@ -9,6 +9,8 @@ from Py4GWCoreLib.Builds.BuildHelpers.BuildDangerHelper import DangerTable
 from Py4GWCoreLib.Builds.DervSpiderFarmer import DervBuildFarmStatus, DervSpiderFarmer
 from Py4GWCoreLib.enums_src.GameData_enums import Range
 from Py4GWCoreLib.Builds.BuildHelpers import BuildDangerHelper
+from Py4GWCoreLib.enums_src.Model_enums import ModelID
+from Py4GWCoreLib.py4gwcorelib_src import Utils
 
 RATA_SUM = 640
 MAGUS_STONE = 569
@@ -19,6 +21,12 @@ FOES_MODEL_IDS = [SPIDER_MODEL]
 magus_stone_cripple_danger_table: DangerTable = (
     ([6479, 6383, 6382], "Spider"),
 )
+
+# Global states
+
+is_farming = False
+is_looting = False
+item_id_blacklist = []
 
 bot = Botting(
     SCRIPT_NAME,
@@ -76,22 +84,29 @@ def MagusStoneRoutine(bot: Botting) -> None:
 
     # Set combat routine
     # bot.config.set_pause_on_danger_fn(detect_spider_or_loot)
-    bot.Properties.Enable('alcohol')
+    # bot.Properties.Enable('alcohol')
     bot.Properties.Enable('auto_combat')
+    bot.States.AddCustomState(lambda: use_alcohol(), "Use Eggnog")
     bot.Wait.ForTime(5000) # Wait for buffs to cast
 
     # bot.Properties.Enable("pause_on_danger")
 
-    for x,y,status in path:
+    # Follow the path
+    for x,y,status in path_1:
         bot.Move.XY(x, y)
-        bot.States.AddCustomState(lambda: set_bot_status(bot, status), f"Set Build Status to {status}")
+        bot.States.AddCustomState(lambda bot=bot, status=status: set_bot_status(bot, status), f"Set Build Status to {status}")
 
-    ConsoleLog(SCRIPT_NAME, "Insert looting logic here", Py4GW.Console.MessageType.Info)
+    # Execute farm routine
+    bot.States.AddCustomState(lambda: execute_farm_routine(bot), "Execute Farm Routine 1")
 
+    # Second part of the path
     for x,y,status in path_2:
         bot.Move.XY(x, y)
-        bot.States.AddCustomState(lambda: set_bot_status(bot, status), f"Set Build Status to {status}")
+        bot.States.AddCustomState(lambda bot=bot, status=status: set_bot_status(bot, status), f"Set Build Status to {status}")
     
+    # Execute farm routine
+    bot.States.AddCustomState(lambda: execute_farm_routine(bot), "Execute Farm Routine 1")
+
     bot.Wait.ForTime(1000)
     bot.Party.Resign()
 
@@ -99,11 +114,12 @@ def MagusStoneRoutine(bot: Botting) -> None:
 #region main methods
 def set_bot_status(bot: Botting, status: str) -> None:
     '''Sets the bot's build status to the specified status.'''
+
+    ConsoleLog(SCRIPT_NAME, f"Setting bot status to: {status}", Py4GW.Console.MessageType.Info)
     build = bot.config.build_handler
     if build is not None and isinstance(build, DervSpiderFarmer):
         build.status = status
 
-    ConsoleLog(SCRIPT_NAME, f"Setting bot status to: {status}", Py4GW.Console.MessageType.Info)
 
 
 def detect_enemy_or_loot():
@@ -129,6 +145,58 @@ def detect_enemy_or_loot():
 
     # return True
 
+def execute_farm_routine(bot):
+    global is_looting
+    global is_farming
+
+    if is_farming:
+        return
+
+    # Auto detect if enemies in the area
+    enemy_array = get_enemy_array(custom_range=Range.Earshot.value, detectable_collection=FOES_MODEL_IDS)
+    if not len(enemy_array):
+        ConsoleLog(SCRIPT_NAME, 'No enemies detected')
+        return
+
+    ConsoleLog(SCRIPT_NAME, 'Entering kill routine...')
+    is_farming = True
+    # bot.config.build_handler.status = DervBuildFarmStatus.Kill
+
+    timeout_timer = ThrottledTimer(120000) # 2 minutes
+    timeout_timer.Start()
+
+    player_id = GLOBAL_CACHE.Player.GetAgentID()
+
+    while True:
+        enemy_array = get_enemy_array(custom_range=Range.Earshot.value, detectable_collection=FOES_MODEL_IDS)
+        if len(enemy_array) == 0:
+            bot.config.build_handler.status = DervBuildFarmStatus.Move
+            yield None
+            break  # all fog_nightmares dead
+
+        # Timeout check
+        if timeout_timer.IsExpired():
+            ConsoleLog(SCRIPT_NAME, 'Fight took too long, setting back to [Move] status')
+            bot.config.build_handler.status = DervBuildFarmStatus.Move
+            yield None
+            break
+
+        # Death check
+        if Agent.IsDead(player_id):
+            # handle death here
+            ConsoleLog(SCRIPT_NAME, 'Died fighting, resetting farm')
+            bot.config.build_handler.status = DervBuildFarmStatus.Setup
+            yield from Routines.Yield.wait(1000)
+            yield from Routines.Yield.Player.Resign()
+            break
+
+        yield from Routines.Yield.wait(100)
+
+    ConsoleLog(SCRIPT_NAME, 'Finished farming.')
+    is_farming = False
+
+    yield from Routines.Yield.wait(100)
+
 
 #region helper methods
 def get_enemy_array(custom_range = Range.Area.value * 1.50, detectable_collection: Iterable[int] = []) -> list[int]:
@@ -142,6 +210,9 @@ def get_enemy_array(custom_range = Range.Area.value * 1.50, detectable_collectio
 
 def get_valid_loot_array(viable_loot=[]):
     pass
+
+def use_alcohol():
+    yield from Routines.Yield.Items.UseItem(ModelID.Eggnog.value)
 
 #region main
 bot.SetMainRoutine(create_bot_routine)
@@ -161,16 +232,16 @@ def main():
 if __name__ == "__main__":
     main()
 
-path = [
+path_1 = [
     #normal running routine
     (17561.23, 7616.28, DervBuildFarmStatus.Move), # Before first spider group
     (19078.75, 4208.01, DervBuildFarmStatus.Move), # After first spider group
 
     #balling running routine
     (19004.04, 3309.77, DervBuildFarmStatus.Ball), # First back n forth to ball spider group 1
-    (18356.18, 3276.71, DervBuildFarmStatus.Ball),
+    (18504.34, 3394.30, DervBuildFarmStatus.Ball),
     (19004.04, 3309.77, DervBuildFarmStatus.Ball), # Second back n forth to ball spider group 2
-    (18356.18, 3276.71, DervBuildFarmStatus.Kill),
+    (18504.34, 3394.30, DervBuildFarmStatus.Kill),
 
 
     # (18470.39, 3916.44, DervBuildFarmStatus.Kill), # Backup
@@ -179,11 +250,12 @@ path = [
 ]
 
 path_2  = [
+    (18768.15, 2279.14, DervBuildFarmStatus.Move), # After killing first group to before narrow path
     (17911.47, 1191.82, DervBuildFarmStatus.Move), # Leaving after killing first group to before narrow path
 
     # Insert back and forth to clear the narrow path
-    (17580.91, 844.03, DervBuildFarmStatus.Move), # Maybe wait here for a bit
-    (17952.61, 1345.80, DervBuildFarmStatus.Move),
+    # (17580.91, 844.03, DervBuildFarmStatus.Move), # Maybe wait here for a bit
+    # (17952.61, 1345.80, DervBuildFarmStatus.Move),
 
     (17665.95, 185.75, DervBuildFarmStatus.Move), # Hug left side of narrow path
     (17560.50, -342.79, DervBuildFarmStatus.Move), # More left side of narrow path
