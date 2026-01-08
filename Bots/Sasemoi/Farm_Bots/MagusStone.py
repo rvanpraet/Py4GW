@@ -14,20 +14,22 @@ bot = Botting(
     upkeep_auto_combat_active=False,
     upkeep_auto_inventory_management_active=False,
     upkeep_auto_loot_active=False,
+    upkeep_alcohol_active=True,
+    upkeep_alcohol_target_drunk_level=1,
     config_log_actions=False
 )
 
-hero_list = [
-    HeroType.Gwen,
-    HeroType.MOX,
-    HeroType.Melonni
-]
+# hero_list = [
+#     HeroType.Gwen,
+#     HeroType.MOX,
+#     HeroType.Melonni
+# ]
 
-hero_template_list = [
-    (HeroType.Gwen, "OQpjAwDjKP3XlAAAAAAAAAAAAA"),
-    (HeroType.MOX, "Ogmioys8cfpxAAAAAAAAAAAA"),
-    (HeroType.Melonni, "Ogmioys8cfpxAAAAAAAAAAAA")
-]
+# hero_template_list = [
+#     (HeroType.Gwen, "OQpjAwDjKP3XlAAAAAAAAAAAAA"),
+#     (HeroType.MOX, "Ogmioys8cfpxAAAAAAAAAAAA"),
+#     (HeroType.Melonni, "Ogmioys8cfpxAAAAAAAAAAAA")
+# ]
 
 def create_bot_routine(bot: Botting) -> None:
     InitBot(bot)
@@ -37,7 +39,8 @@ def create_bot_routine(bot: Botting) -> None:
 
 def InitBot(bot: Botting) -> None:
     bot.States.AddHeader("Init Party")
-    MysticHealingSupport.SetupHealingParty(bot, hero_list=hero_template_list)
+    bot.Map.Travel(RATA_SUM)
+    # MysticHealingSupport.SetupHealingParty(bot, hero_list=hero_template_list)
 
 def SetupResign(bot: Botting):
     bot.States.AddHeader("Setup Resign")
@@ -47,19 +50,14 @@ def SetupResign(bot: Botting):
 
 
 def MagusStoneRoutine(bot: Botting) -> None:
-    bot.States.AddHeader("Launch Bots")
-    MysticHealingSupport.InitHeroComanagedRoutines(bot, hero_list=hero_list)
+    bot.States.AddHeader("Running Routine")
+    bot.Move.XYAndExitMap(16387.96, 13047.04, target_map_id=MAGUS_STONE) # target_map_name="Barbarous Shore"
+    # MysticHealingSupport.InitHeroComanagedRoutines(bot, hero_list=hero_list)
 
-    bot.Party.FlagAllHeroes(17070.32, 12985.33)
-    bot.Move.XY(17328.93, 7559.94) # Before first spider group
+    # bot.Party.FlagAllHeroes(17070.32, 12985.33)
 
-    bot.Properties.Enable('hero_ai')
-    bot.States.AddCustomState(lambda: KeepRunning(), "Keep Bot Running")
-    bot.States.AddCustomState(lambda: KeepRunning(), "Another state to keep running")
+    bot.Move.FollowPath(path, "Magus Stone Farming Path")
 
-def KeepRunning():
-    while True:
-        yield from Routines.Yield.wait(100)
 
 
 
@@ -79,3 +77,34 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+path = [
+    #normal running routine
+    (17561.23, 7616.28), # Before first spider group
+    (19078.75, 4208.01), # After first spider group
+
+    #balling running routine
+    (18951.85, 3844.59), # First back n forth to ball spider group 1
+    (18470.39, 3916.44),
+    (18951.85, 3844.59), # Second back n forth to ball spider group 2
+    (18470.39, 3916.44),
+    #start killing routine
+    #kill spiders
+
+    #path2
+    (17911.47, 1191.82), # Leaving after killing first group to before narrow path
+    (17665.95, 185.75), # Hug left side of narrow path
+    (17279.21, -687.44), # After narrow path
+
+
+    (17308.99, -2487.48), # First back n forth to ball spider group 2
+    (16785.13, -2110.67),
+    (17308.99, -2487.48), # Second back n forth to ball spider group 2
+    (16785.13, -2110.67),
+]
+
+
+path_2 = [
+
+  # (17313.97, -2603.54),
+]
