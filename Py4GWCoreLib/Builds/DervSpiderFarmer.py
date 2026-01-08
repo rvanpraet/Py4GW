@@ -120,7 +120,7 @@ class DervSpiderFarmer(BuildMgr):
         #     if self._is_target_correct_model_id(agent_id, AgentModelID.SPIDER):
         #         target = agent_id
 
-        return target_arr[0] if target_arr else 0
+        return target_arr[1] if len(target_arr) > 1 else target_arr[0] if target_arr else 0
 
 
     # Watcher routines

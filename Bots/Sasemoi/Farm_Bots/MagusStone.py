@@ -154,7 +154,7 @@ def ResetFarmLoop(bot: Botting):
 
 
     bot.Party.Resign()
-    # bot.Wait.ForTime(3000)
+    bot.Wait.ForTime(3000)
     bot.Wait.UntilCondition(lambda: Agent.IsDead(GLOBAL_CACHE.Player.GetAgentID()))
     # bot.States.AddCustomState(lambda: AssessLootManagement(), "Loot management check")
     # bot.Wait.ForTime(10000)
