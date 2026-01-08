@@ -83,48 +83,74 @@ class DervSpiderFarmer(BuildMgr):
             return True
         return False
 
-    def get_fog_nightmare_or_aloe_target(self, agent_ids):
-        aloe_target = None
-        fog_nightmare_target = None
-        fog_nightmare_count = 0
-        for agent_id in agent_ids:
-            if self.is_target_correct_model_id(agent_id, AgentModelID.SPINED_ALOE):
-                aloe_target = agent_id
+
+    def _get_target(self, agent_ids):
+        target = None
+        target_count = 0
 
         for agent_id in agent_ids:
-            if self.is_target_correct_model_id(agent_id, AgentModelID.FOG_NIGHTMARE):
-                fog_nightmare_count += 1
-                fog_nightmare_target = agent_id
+            if self.is_target_correct_model_id(agent_id, AgentModelID.SPIDER):
+                target = agent_id
 
-        if aloe_target and fog_nightmare_target and fog_nightmare_count > 1:
-            return Routines.Agents.GetNearestEnemy(Range.Earshot.value)
-        if aloe_target and fog_nightmare_count and fog_nightmare_count <= 1:
-            return aloe_target
-        if aloe_target:
-            return aloe_target or fog_nightmare_target
-        if fog_nightmare_target:
+        if target:
             return Routines.Agents.GetNearestEnemy(Range.Earshot.value)
 
 
     # Watches dangerous conditions and applies defensive skills as needed
     def _DefensiveWatcher(self):
         player_agent_id = GLOBAL_CACHE.Player.GetAgentID()
-        is_iau_ready = Routines.Checks.Skills.IsSkillIDReady(self.i_am_unstoppable)
-
-        player_agent_id = GLOBAL_CACHE.Player.GetAgentID()
         (px, py) = GLOBAL_CACHE.Player.GetXY()
 
         if Agent.IsCrippled(player_agent_id) or self.build_danger_helper.check_cripple_kd(px, py):
             has_iau = Routines.Checks.Effects.HasBuff(player_agent_id, self.i_am_unstoppable)
             has_mirage_cloak = Routines.Checks.Effects.HasBuff(player_agent_id, self.mirage_cloak)
-            is_iau_ready = Routines.Checks.Skills.IsSkillIDReady(self.i_am_unstoppable)
-            is_mirage_cloak_ready = Routines.Checks.Skills.IsSkillIDReady(self.mirage_cloak)
+            is_iau_ready = yield from Routines.Yield.Skills.IsSkillIDUsable(self.i_am_unstoppable)
+            is_mirage_cloak_ready = yield from Routines.Yield.Skills.IsSkillIDUsable(self.mirage_cloak)
 
             if is_iau_ready and not has_iau:
                 yield from Routines.Yield.Skills.CastSkillID(self.i_am_unstoppable, aftercast_delay=200)
 
             if is_mirage_cloak_ready and not has_mirage_cloak:
                 yield from Routines.Yield.Skills.CastSkillID(self.mirage_cloak, aftercast_delay=200)
+
+        else:
+            yield None
+
+
+    # While in kill mode, detect nearby enemies and spike
+    def _OffensiveWatcher(self):
+        if self.status != DervBuildFarmStatus.Kill:
+            yield None
+            return
+    
+        player_agent_id = GLOBAL_CACHE.Player.GetAgentID()
+        player_pos = GLOBAL_CACHE.Player.GetXY()
+        player_current_energy = Agent.GetEnergy(player_agent_id) * Agent.GetMaxEnergy(player_agent_id)
+
+        # Get next target
+        remaining_enemies = Routines.Agents.GetFilteredEnemyArray(player_pos[0], player_pos[1], Range.Earshot.value)
+        next_target = self._get_target(remaining_enemies)
+
+        # No target found, exit
+        if not next_target:
+            yield None
+            return
+        
+        has_sand_shards = Routines.Checks.Effects.HasBuff(player_agent_id, self.sand_shards)
+        has_vow_of_strength = Routines.Checks.Effects.HasBuff(player_agent_id, self.vow_of_strength)
+        is_sand_shards_usable = Routines.Yield.Skills.IsSkillIDUsable(self.sand_shards)
+        is_vow_of_strength_usable = Routines.Yield.Skills.IsSkillIDUsable(self.vow_of_strength)
+
+        yield from Routines.Yield.Agents.InteractAgent(next_target)
+
+        if is_sand_shards_usable and not has_sand_shards:
+            yield from Routines.Yield.Skills.CastSkillID(self.sand_shards, aftercast_delay=1250)
+
+        elif is_vow_of_strength_usable and not has_vow_of_strength:
+            yield from Routines.Yield.Skills.CastSkillID(self.vow_of_strength, aftercast_delay=1250)
+
+
+        yield None
 
     
     def ProcessSkillCasting(self):
@@ -136,20 +162,24 @@ class DervSpiderFarmer(BuildMgr):
                 yield from Routines.Yield.wait(1000)
                 continue
             
+
             # Player is dead
             if Agent.IsDead(GLOBAL_CACHE.Player.GetAgentID()):
                 yield from Routines.Yield.wait(1000)
                 continue
+
 
             # Cannot cast skills right now, throttle 100ms
             if not Routines.Checks.Skills.CanCast():
                 yield from Routines.Yield.wait(100)
                 continue
 
+
             # Skip skill casting while looting or waiting
             if self.status == DervBuildFarmStatus.Loot or self.status == DervBuildFarmStatus.Wait:
                 yield from Routines.Yield.wait(100)
                 continue
+
 
             # Setup phase logic
             if self.status == DervBuildFarmStatus.Setup:
@@ -179,17 +209,18 @@ class DervSpiderFarmer(BuildMgr):
                 if is_drunken_master_usable and not has_drunken_master:
                     yield from Routines.Yield.Skills.CastSkillID(self.drunken_master, aftercast_delay=250)
 
+
             # Defensive watcher only during move and kill phases
             if self.status in [DervBuildFarmStatus.Move, DervBuildFarmStatus.Kill]:
-                has_mirage_cloak = Routines.Checks.Effects.HasBuff(GLOBAL_CACHE.Player.GetAgentID(), self.mirage_cloak)
                 has_mystic_regen = Routines.Checks.Effects.HasBuff(GLOBAL_CACHE.Player.GetAgentID(), self.mystic_regen)
-                is_mirage_cloak_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.mirage_cloak)
                 is_mystic_regen_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.mystic_regen)
 
                 if is_mystic_regen_usable and not has_mystic_regen:
                     yield from Routines.Yield.Skills.CastSkillID(self.mystic_regen, aftercast_delay=1250)
                 
 
+            # Offensive watcher during kill phase spikes enemies
+            yield from self._OffensiveWatcher()
 
             # Skills usable in all phases but dependent on nearby enemies
             yield from self._DefensiveWatcher()

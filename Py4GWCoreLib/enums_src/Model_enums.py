@@ -10,6 +10,7 @@ class AgentModelID(IntEnum):
     SENSALI_CLAW = 3944 + 51
     SENSALI_CUTTER = 3948 + 51
     SPINED_ALOE = 1731
+    SPIDER = 6846
     
 class GadgetModelID(IntEnum):
     CHEST_HIDDEN_STASH = 9 #ID for Hidden Stash (Pre-Searing)

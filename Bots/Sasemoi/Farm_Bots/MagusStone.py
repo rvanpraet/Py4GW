@@ -8,6 +8,7 @@ from Bots.Sasemoi.bot_helpers.bot_mystic_healing_support import MysticHealingSup
 from Py4GWCoreLib.Builds.BuildHelpers.BuildDangerHelper import DangerTable
 from Py4GWCoreLib.Builds.DervSpiderFarmer import DervBuildFarmStatus, DervSpiderFarmer
 from Py4GWCoreLib.enums_src.GameData_enums import Range
+from Py4GWCoreLib.Builds.BuildHelpers import BuildDangerHelper
 
 RATA_SUM = 640
 MAGUS_STONE = 569
@@ -21,14 +22,18 @@ magus_stone_cripple_danger_table: DangerTable = (
 
 bot = Botting(
     SCRIPT_NAME,
-    custom_build=DervSpiderFarmer(),
+    custom_build=DervSpiderFarmer(
+        build_danger_helper=BuildDangerHelper(
+            cripple_kd_table=magus_stone_cripple_danger_table,
+        )
+    ),
     upkeep_hero_ai_active=False,
     upkeep_auto_combat_active=False,
     upkeep_auto_inventory_management_active=False,
     upkeep_auto_loot_active=False,
-    upkeep_alcohol_active=True,
+    upkeep_alcohol_active=False,
     upkeep_alcohol_target_drunk_level=1,
-    config_log_actions=False
+    config_log_actions=False,
 )
 
 # hero_list = [
@@ -71,6 +76,7 @@ def MagusStoneRoutine(bot: Botting) -> None:
 
     # Set combat routine
     # bot.config.set_pause_on_danger_fn(detect_spider_or_loot)
+    bot.Properties.Enable('alcohol')
     bot.Properties.Enable('auto_combat')
     bot.Wait.ForTime(5000) # Wait for buffs to cast
 
