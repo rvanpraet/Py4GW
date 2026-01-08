@@ -30,12 +30,12 @@ def get_valid_loot_array(viable_loot=VIABLE_LOOT, loot_salvagables=False):
 
     # Create the lootarray filtered by distance
     loot_array = AgentArray.GetItemArray()
-    loot_array = AgentArray.Filter.ByDistance(loot_array, GLOBAL_CACHE.Player.GetXY(), Range.Spellcast.value * 3.00)
+    loot_array: list[int] = AgentArray.Filter.ByDistance(loot_array, GLOBAL_CACHE.Player.GetXY(), Range.Spellcast.value * 3.00)
     
 
     # Create agent array filtered by viability
     agent_array = AgentArray.GetItemArray()
-    item_array_model = AgentArray.Filter.ByCondition(agent_array, filter_fn)
+    item_array_model: list[int] = AgentArray.Filter.ByCondition(agent_array, filter_fn)
 
 
     # Handle salvagable items if needed
@@ -47,7 +47,7 @@ def get_valid_loot_array(viable_loot=VIABLE_LOOT, loot_salvagables=False):
     
     # Make unique and sort
     item_array = list(set(item_array_model + item_array_salv))
-    item_array = AgentArray.Sort.ByDistance(item_array, GLOBAL_CACHE.Player.GetXY())
+    item_array: list[int] = AgentArray.Sort.ByDistance(item_array, GLOBAL_CACHE.Player.GetXY())
 
     return item_array
 

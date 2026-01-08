@@ -116,7 +116,7 @@ def MagusStoneRoutine(bot: Botting) -> None:
     bot.States.AddManagedCoroutine("Run Stuck Handler", run_stuck_helper)
     bot.States.AddManagedCoroutine("Setup loot handler", lambda: handle_loot(bot))
     bot.States.AddCustomState(lambda: use_alcohol(), "Use Alcohol")
-    bot.Wait.ForTime(5000) # Wait for buffs to cast
+    bot.Wait.ForTime(3000) # Wait for buffs to cast
 
     # bot.Properties.Enable("pause_on_danger")
 
@@ -149,7 +149,12 @@ def ResetFarmLoop(bot: Botting):
 
     # MysticHealingSupport.RemoveHeroComanagedRoutines(bot, hero_list=hero_list)
     bot.States.AddCustomState(reset_item_blacklist, "Reset Opened Chests List")
+    bot.States.AddCustomState(lambda status=DervBuildFarmStatus.Wait: set_bot_status(bot, status), "Waiting to return")
+
+
     bot.Party.Resign()
+    bot.Wait.ForTime(3000)
+    bot.Wait.UntilCondition(lambda: Agent.IsDead(GLOBAL_CACHE.Player.GetAgentID()))
     # bot.States.AddCustomState(lambda: AssessLootManagement(), "Loot management check")
     # bot.Wait.ForTime(10000)
     # bot.States.AddCustomState(lambda: ConditionallyMoveToMerchant(), "Move to merchant for inventory check")
@@ -198,17 +203,21 @@ def pause_on_danger_fn():
 
     build = bot.config.build_handler
     if isinstance(build, DervSpiderFarmer) and build.status not in [DervBuildFarmStatus.Kill, DervBuildFarmStatus.Loot]:
+        ConsoleLog(SCRIPT_NAME, f'Pause on danger False because :::: NOT IN KILLING OR LOOTING STATUS ::: Current Status: {build.status}')
         return False
 
-    is_valuable_loot_in_range = get_valid_loot_array()
-    if not is_valuable_loot_in_range or len(is_valuable_loot_in_range) == 0:
+    valuable_loot_array = get_valid_loot_array()
+    if not valuable_loot_array or len(valuable_loot_array) == 0:
+        ConsoleLog(SCRIPT_NAME, f'Pause on danger False because :::: NO VALUABLE LOOT IN RANGE')
         return False
 
-    filtered_agent_ids = [agent_id for agent_id in is_valuable_loot_in_range if agent_id not in set(item_id_blacklist)]
+    filtered_agent_ids = [agent_id for agent_id in valuable_loot_array if agent_id not in set(item_id_blacklist)]
 
     if not filtered_agent_ids or len(filtered_agent_ids) == 0:
+        ConsoleLog(SCRIPT_NAME, f'Pause on danger False because :::: NO VALUABLE LOOT IN RANGE FILTERED BY BLACKLIST')
         return False
 
+    ConsoleLog(SCRIPT_NAME, f'Pause on danger TRUE')
     return True
 
 
@@ -307,7 +316,10 @@ def loot_items(loot_array: list[int]):
 
     failed_items_id = yield from Routines.Yield.Items.LootItemsWithMaxAttempts(loot_array, log=True)
     if failed_items_id:
+        ConsoleLog(SCRIPT_NAME, f'Failed to loot item with ID: {failed_items_id}, adding to blacklist')
+
         item_id_blacklist = item_id_blacklist + failed_items_id
+        ConsoleLog(SCRIPT_NAME, f'Current blacklist: {item_id_blacklist}')
 
     ConsoleLog(SCRIPT_NAME, 'Looting items finished')
     yield from Routines.Yield.wait(1000)  # Wait for a moment after finishing looting
@@ -402,8 +414,8 @@ path_2  = [
     (17911.47, 1191.82, DervBuildFarmStatus.Move), # Leaving after killing first group to before narrow path
 
     # Insert back and forth to clear the narrow path
-    # (17580.91, 844.03, DervBuildFarmStatus.Move), # Maybe wait here for a bit
-    # (17952.61, 1345.80, DervBuildFarmStatus.Move),
+    (17580.91, 844.03, DervBuildFarmStatus.Move), # Maybe wait here for a bit
+    (17952.61, 1345.80, DervBuildFarmStatus.Move),
 
     (17665.95, 185.75, DervBuildFarmStatus.Move), # Hug left side of narrow path
     (17560.50, -342.79, DervBuildFarmStatus.Move), # More left side of narrow path
