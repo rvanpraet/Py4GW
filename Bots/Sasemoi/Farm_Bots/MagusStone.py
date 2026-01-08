@@ -112,13 +112,13 @@ def MagusStoneRoutine(bot: Botting) -> None:
 
 
 #region main methods
-def set_bot_status(bot: Botting, status: str) -> None:
+def set_bot_status(bot: Botting, status: str):
     '''Sets the bot's build status to the specified status.'''
 
-    ConsoleLog(SCRIPT_NAME, f"Setting bot status to: {status}", Py4GW.Console.MessageType.Info)
     build = bot.config.build_handler
     if build is not None and isinstance(build, DervSpiderFarmer):
-        build.status = status
+        yield from build.SetStatus(status)
+        # build.status = status
 
 
 

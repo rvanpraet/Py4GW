@@ -1,6 +1,8 @@
 import math
 import random
 
+import Py4GW
+
 from Py4GWCoreLib import GLOBAL_CACHE
 from Py4GWCoreLib import ActionQueueManager
 from Py4GWCoreLib import AgentModelID
@@ -15,9 +17,11 @@ from Py4GWCoreLib import Weapon
 from Py4GWCoreLib import Agent
 from Py4GWCoreLib.Builds.AutoCombat import AutoCombat
 from Py4GWCoreLib.Builds.BuildHelpers import BuildDangerHelper
+from Py4GWCoreLib.py4gwcorelib_src.Console import ConsoleLog
 
 
 # =================== BUILD ========================
+BUILD_NAME = "Derv Spider Farmer"
 class DervBuildFarmStatus:
     Setup = 'setup'
     Move = 'move'
@@ -30,7 +34,7 @@ class DervBuildFarmStatus:
 class DervSpiderFarmer(BuildMgr):
     def __init__(self, build_danger_helper: BuildDangerHelper = BuildDangerHelper()):
         super().__init__(
-            name="Derv Spider Farmer",
+            name=BUILD_NAME,
             required_primary=Profession.Dervish,
             required_secondary=Profession.Monk,
             template_code='OgOjkOrMLTmXfbcX0XyDqisX0kA',
@@ -86,6 +90,7 @@ class DervSpiderFarmer(BuildMgr):
         ]:  
             raise ValueError(f"Invalid status: {new_status}")
         
+        ConsoleLog(BUILD_NAME, f"Setting bot status to: {new_status}", Py4GW.Console.MessageType.Info)
         self.status = new_status
         if new_status == DervBuildFarmStatus.Kill:
             yield from self._swap_to_scythe()
