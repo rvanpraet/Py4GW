@@ -377,7 +377,7 @@ def reset_item_blacklist():
 
 # Use alcohol, make more generic to use all sorts of alcohol later
 def use_alcohol():
-    yield from Routines.Yield.Items.UseItem(ModelID.Eggnog.value)
+    yield from Routines.Yield.Items.UseItem(ModelID.Vial_Of_Absinthe.value)
 
 
 
@@ -435,7 +435,13 @@ path_2  = [
     # (17655.59, 1163.28, DervBuildFarmStatus.Move, 1000), # Move a bit back from the narrow path, wait (closer)
     # (17952.61, 1345.80, DervBuildFarmStatus.Move, 1000), # Move a bit back from the narrow path, wait
 
-    (17665.95, 185.75, DervBuildFarmStatus.Move, 0), # Hug left side of narrow path
+    
+    # Try to zigzag the narrow path
+    (17750.43, 367.06, DervBuildFarmStatus.Move, 0), # Hug left side of narrow path
+    (17418.65, 152.65, DervBuildFarmStatus.Move, 0), # Hug right side of narrow path
+
+    # previous path
+    # (17665.95, 185.75, DervBuildFarmStatus.Move, 0), # Hug left side of narrow path
     # (17381.34, -149.69, DervBuildFarmStatus.Move, 0), # Hug middle side of narrow path
     # (17560.50, -342.79, DervBuildFarmStatus.Move, 0), # More left side of narrow path
     # (17279.21, -687.44, DervBuildFarmStatus.Ball, 0), # After narrow path
