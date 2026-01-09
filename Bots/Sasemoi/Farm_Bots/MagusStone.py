@@ -431,14 +431,14 @@ path_2  = [
 
     # Insert back and forth to clear the narrow path
     (17580.91, 844.03, DervBuildFarmStatus.Move, 1000), # Start of narrow path, wait
-    (17826.58, 1412.65, DervBuildFarmStatus.Move, 1500), # Move a bit back from the narrow path, wait (further)
+    (17826.58, 1412.65, DervBuildFarmStatus.Move, 1000), # Move a bit back from the narrow path, wait (further)
     # (17655.59, 1163.28, DervBuildFarmStatus.Move, 1000), # Move a bit back from the narrow path, wait (closer)
     # (17952.61, 1345.80, DervBuildFarmStatus.Move, 1000), # Move a bit back from the narrow path, wait
 
-    # (17665.95, 185.75, DervBuildFarmStatus.Move, 0), # Hug left side of narrow path
+    (17665.95, 185.75, DervBuildFarmStatus.Move, 0), # Hug left side of narrow path
     # (17381.34, -149.69, DervBuildFarmStatus.Move, 0), # Hug middle side of narrow path
     # (17560.50, -342.79, DervBuildFarmStatus.Move, 0), # More left side of narrow path
-    (17279.21, -687.44, DervBuildFarmStatus.Ball, 0), # After narrow path
+    # (17279.21, -687.44, DervBuildFarmStatus.Ball, 0), # After narrow path
 
 
     (17582.81, -3894.67, DervBuildFarmStatus.Ball, 1500), # First back n forth to ball spider group 2

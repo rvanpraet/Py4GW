@@ -126,11 +126,11 @@ class DervSpiderFarmer(BuildMgr):
         (px, py) = GLOBAL_CACHE.Player.GetXY()
 
         has_iau = Routines.Checks.Effects.HasBuff(player_agent_id, self.i_am_unstoppable)
+        has_mirage_cloak = Routines.Checks.Effects.HasBuff(player_agent_id, self.mirage_cloak)
         is_iau_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.i_am_unstoppable)
+        is_mirage_cloak_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.mirage_cloak)
 
         if Agent.IsCrippled(player_agent_id) or self.build_danger_helper.check_cripple_kd(px, py):
-            has_mirage_cloak = Routines.Checks.Effects.HasBuff(player_agent_id, self.mirage_cloak)
-            is_mirage_cloak_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.mirage_cloak)
 
             if is_iau_usable and not has_iau:
                 yield from Routines.Yield.Skills.CastSkillID(self.i_am_unstoppable, aftercast_delay=200)
@@ -145,6 +145,10 @@ class DervSpiderFarmer(BuildMgr):
 
             if is_harriers_grasp_usable and not has_harriers_grasp:
                 yield from Routines.Yield.Skills.CastSkillID(self.harriers_grasp, aftercast_delay=200)
+
+        # Low health mirage cloak in case enemies are too far to detect with danger detector
+        if Agent.GetHealth(player_agent_id) <= 0.5 and is_mirage_cloak_usable:
+            yield from Routines.Yield.Skills.CastSkillID(self.mirage_cloak, aftercast_delay=200)
 
         yield None
 
