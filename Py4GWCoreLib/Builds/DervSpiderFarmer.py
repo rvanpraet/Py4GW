@@ -92,12 +92,12 @@ class DervSpiderFarmer(BuildMgr):
     def _swap_to_scythe(self):
         if Agent.GetWeaponType(Player.GetAgentID())[0] != Weapon.Scythe:
             Keystroke.PressAndRelease(Key.F1.value)
-            yield
+            yield from Routines.Yield.wait(250)
 
     def _swap_to_shield_set(self):
         if Agent.GetWeaponType(Player.GetAgentID())[0] == Weapon.Scythe:
             Keystroke.PressAndRelease(Key.F2.value)
-            yield from Routines.Yield.wait(750)
+            yield from Routines.Yield.wait(250)
 
     def _is_target_correct_model_id(self, agent_id, model_id):
         if not agent_id:
@@ -115,10 +115,6 @@ class DervSpiderFarmer(BuildMgr):
 
         target_arr = [target_id for target_id in agent_ids if self._is_target_correct_model_id(target_id, AgentModelID.SPIDER)]
         target_arr = AgentArray.Sort.ByDistance(target_arr, player_pos) 
-
-        # for agent_id in agent_ids:
-        #     if self._is_target_correct_model_id(agent_id, AgentModelID.SPIDER):
-        #         target = agent_id
 
         return target_arr[1] if len(target_arr) > 1 else target_arr[0] if target_arr else 0
 
@@ -143,7 +139,7 @@ class DervSpiderFarmer(BuildMgr):
                 yield from Routines.Yield.Skills.CastSkillID(self.mirage_cloak, aftercast_delay=200)
 
         # Anti cripple when IAU is down
-        if Agent.IsCrippled(player_agent_id) and not has_iau and not is_iau_usable:
+        if Agent.IsCrippled(player_agent_id) and not has_iau and not is_iau_usable and self.status != DervBuildFarmStatus.Kill:
             has_harriers_grasp = Routines.Checks.Effects.HasBuff(player_agent_id, self.harriers_grasp)
             is_harriers_grasp_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.harriers_grasp)
 

@@ -366,7 +366,6 @@ def set_bot_status(bot: Botting, status: str):
     build = bot.config.build_handler
     if build is not None and isinstance(build, DervSpiderFarmer):
         yield from build.SetStatus(status)
-        # build.status = status
 
 
 # Reset the blacklisted loot item ids
@@ -425,23 +424,30 @@ path_1 = [
 ]
 
 path_2  = [
+    # From previous kill spot to narrow path
     (18768.15, 2279.14, DervBuildFarmStatus.Move, 0), # After killing first group to before narrow path
-    (17911.47, 1191.82, DervBuildFarmStatus.Move, 0), # Leaving after killing first group to before narrow path
+    (18254.00, 2098.56, DervBuildFarmStatus.Move, 0), # Zig zag to avoid block
+    # (17911.47, 1191.82, DervBuildFarmStatus.Move, 0), # After zigzag to before narrow path
 
     # Insert back and forth to clear the narrow path
-    (17580.91, 844.03, DervBuildFarmStatus.Move, 1000), # Maybe wait here for a bit
-    (17952.61, 1345.80, DervBuildFarmStatus.Move, 1000),
+    (17580.91, 844.03, DervBuildFarmStatus.Move, 1000), # Start of narrow path, wait
+    (17826.58, 1412.65, DervBuildFarmStatus.Move, 1500), # Move a bit back from the narrow path, wait (further)
+    # (17655.59, 1163.28, DervBuildFarmStatus.Move, 1000), # Move a bit back from the narrow path, wait (closer)
+    # (17952.61, 1345.80, DervBuildFarmStatus.Move, 1000), # Move a bit back from the narrow path, wait
 
-    (17665.95, 185.75, DervBuildFarmStatus.Ball, 0), # Hug left side of narrow path
+    # (17665.95, 185.75, DervBuildFarmStatus.Move, 0), # Hug left side of narrow path
+    # (17381.34, -149.69, DervBuildFarmStatus.Move, 0), # Hug middle side of narrow path
     # (17560.50, -342.79, DervBuildFarmStatus.Move, 0), # More left side of narrow path
-    # (17279.21, -687.44, DervBuildFarmStatus.Ball, 0), # After narrow path
+    (17279.21, -687.44, DervBuildFarmStatus.Ball, 0), # After narrow path
 
 
-    (17543.69, -3031.16, DervBuildFarmStatus.Ball, 0), # First back n forth to ball spider group 2
+    (17582.81, -3894.67, DervBuildFarmStatus.Ball, 1500), # First back n forth to ball spider group 2
+    (16551.12, -2022.32, DervBuildFarmStatus.Kill, 350), # Last stop before killing routine (new)
     # (17221.04, -3275.86, DervBuildFarmStatus.Ball, 0), # 
-    (16925.17, -2726.17, DervBuildFarmStatus.Ball, 0),
-    (17543.69, -3031.16, DervBuildFarmStatus.Ball, 0), # Second back n forth to ball spider group 2
-    (16925.17, -2726.17, DervBuildFarmStatus.Kill, 0), # Last stop before killing routine
+    # (16925.17, -2726.17, DervBuildFarmStatus.Ball, 0),
+    # (17582.81, -3894.67, DervBuildFarmStatus.Ball, 0), # Second back n forth to ball spider group 2
+    # (16925.17, -2726.17, DervBuildFarmStatus.Kill, 1500), # Last stop before killing routine (before)
+    # (16077.05, -1530.15, DervBuildFarmStatus.Kill, 1500), # First back n forth to ball spider group 2 (very far end stop)
 
     #kill spiders
     #loot
