@@ -1,3 +1,4 @@
+from PyItem import Rarity
 from Bots.marks_coding_corner.utils.loot_utils import is_valid_item
 from Py4GWCoreLib import Agent, AgentArray, Item
 from Py4GWCoreLib.GlobalCache import GLOBAL_CACHE
@@ -63,12 +64,18 @@ def filter_valuable_weapon_type(item_id: int) -> bool:
 
     q8 offhands with max energy (gold rarity only)
     '''
+    desired_skins = [2236, 2237, 1052]
     desired_types = [12, 24, 27] # Offhand, Shield, Sword
     item_instance = Item.item_instance(item_id)
     item_modifiers = item_instance.modifiers
     item_req = 13 # Default high req to skip uninteresting items
 
-    if item_instance.item_type.ToInt() not in desired_types:
+    # immediate accept for desired skins
+    if item_instance.model_id in desired_skins:
+        return True
+
+    # Filter out white items and undesired types early
+    if item_instance.rarity == Rarity.White or item_instance.item_type.ToInt() not in desired_types:
         return False
 
     # Check Q9 max stats
@@ -89,13 +96,15 @@ def filter_valuable_weapon_type(item_id: int) -> bool:
         # Handle Shield
         # 42936 = Shield armor mod identifier
         if item_instance.item_type.ToInt() == 24 and mod.GetIdentifier() == 42936:
-            has_ideal_q5_stats = mod.GetArg1() == 12 or mod.GetArg1() == 13 # Ideal shield armor for q5
+            has_ideal_q4_stats = mod.GetArg1() == 12 # Ideal shield armor for q5
+            has_ideal_q5_stats = mod.GetArg1() == 13 # Ideal shield armor for q5
             has_ideal_q6_stats = mod.GetArg1() == 14
             has_ideal_q7_stats = mod.GetArg1() == 15
             has_max_stats = mod.GetArg1() == 16 # Max armor
 
             return (
-                (item_req == 5 and has_ideal_q5_stats)
+                (item_req == 4 and has_ideal_q4_stats)
+                or (item_req == 5 and has_ideal_q5_stats)
                 or (item_req == 6 and has_ideal_q6_stats)
                 or (item_req == 7 and has_ideal_q7_stats)
                 or has_max_stats

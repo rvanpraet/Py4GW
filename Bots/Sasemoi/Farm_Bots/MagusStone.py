@@ -4,17 +4,16 @@ from typing import Iterable
 from Bots.Sasemoi.bot_helpers.bot_stuck_helper import BotStuckHelper
 from Bots.Sasemoi.utils.loot_filter_utils.magus_stone_loot_filters import get_valid_loot_array
 from Bots.marks_coding_corner.utils.loot_utils import is_valid_item
-from Py4GWCoreLib import Agent, AgentArray, Item, Routines, ConsoleLog, Console
+from Py4GWCoreLib import Agent, Routines, ConsoleLog, Console
 from Py4GWCoreLib import ThrottledTimer
 from Py4GWCoreLib import GLOBAL_CACHE, Map
-from Py4GWCoreLib import Botting, HeroType
+from Py4GWCoreLib import Botting, Utils
 from Bots.Sasemoi.bot_helpers.bot_mystic_healing_support import MysticHealingSupport
 from Py4GWCoreLib.Builds.BuildHelpers.BuildDangerHelper import DangerTable
 from Py4GWCoreLib.Builds.DervSpiderFarmer import DervBuildFarmStatus, DervSpiderFarmer
 from Py4GWCoreLib.enums_src.GameData_enums import Range
 from Py4GWCoreLib.Builds.BuildHelpers import BuildDangerHelper
-from Py4GWCoreLib.enums_src.Model_enums import ModelID
-from Py4GWCoreLib.py4gwcorelib_src import Utils
+# from Py4GWCoreLib.py4gwcorelib_src import Utils
 from Py4GWCoreLib.py4gwcorelib_src.ActionQueue import ActionQueueManager
 
 TIMEOUT_MS = 30000
@@ -194,7 +193,8 @@ def _on_death(bot: Botting):
     yield from Routines.Yield.wait(1000)
     yield from Routines.Yield.Player.Resign()
     yield from reset_item_blacklist()
-    yield from Routines.Yield.wait(10000)  # Wait for death to complete
+    yield from reset_movement_stuck()
+    yield from Routines.Yield.wait(7000)  # Wait for death to complete
 
     fsm = bot.config.FSM
     fsm.jump_to_state_by_name("[H]Running Routine_3") 
@@ -287,13 +287,22 @@ def handle_movement_stuck():
         for _ in range(9):
             GLOBAL_CACHE.Player.Move(back_x, back_y)
             # yield from Routines.Yield.wait(100)
-        
-        # Strafe left/right to wiggle
-        time_left = floor(attempt_timer.GetTimeRemaining() / 1000)
-        if time_left % 2 == 0:
-            yield from Routines.Yield.Movement.StrafeLeft(1000)
-        else : 
-            yield from Routines.Yield.Movement.StrafeRight(1000)
+
+        new_player_pos = GLOBAL_CACHE.Player.GetXY()
+        distance_moved = Utils.Distance(player_pos, new_player_pos)
+
+        if distance_moved >= 200:
+            ConsoleLog(SCRIPT_NAME, f"Movement unstuck successful, moved {distance_moved} units", Py4GW.Console.MessageType.Debug)
+
+            # # Strafe left/right to wiggle
+            # time_left = floor(attempt_timer.GetTimeRemaining() / 1000)
+            # if time_left % 2 == 0:
+            #     yield from Routines.Yield.Movement.StrafeLeft(1000)
+            # else : 
+            #     yield from Routines.Yield.Movement.StrafeRight(1000)
+
+            yield None
+            break
 
 
     ConsoleLog(SCRIPT_NAME, "Unstuck attempts complete", Py4GW.Console.MessageType.Debug)
@@ -483,6 +492,12 @@ def set_bot_status(bot: Botting, status: str):
 def reset_item_blacklist():
     global item_id_blacklist
     item_id_blacklist = []
+    yield None
+
+# Reset the blacklisted loot item ids
+def reset_movement_stuck():
+    global is_movement_stuck
+    is_movement_stuck = False
     yield None
 
 

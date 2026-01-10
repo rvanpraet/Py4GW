@@ -66,8 +66,6 @@ class DervSpiderFarmer(BuildMgr):
 
         # Build Status
         self.status = DervBuildFarmStatus.Setup
-        self.spiked = False
-        self.spiking = False
 
     def SetStatus(self, new_status: str):
         if new_status not in [
@@ -94,10 +92,12 @@ class DervSpiderFarmer(BuildMgr):
             Keystroke.PressAndRelease(Key.F1.value)
             yield from Routines.Yield.wait(250)
 
+
     def _swap_to_shield_set(self):
         if Agent.GetWeaponType(Player.GetAgentID())[0] == Weapon.Scythe:
             Keystroke.PressAndRelease(Key.F2.value)
             yield from Routines.Yield.wait(250)
+
 
     def _is_target_correct_model_id(self, agent_id, model_id):
         if not agent_id:
@@ -111,13 +111,25 @@ class DervSpiderFarmer(BuildMgr):
     def _get_next_target(self):
         player_pos = GLOBAL_CACHE.Player.GetXY()
         agent_ids = Routines.Agents.GetFilteredEnemyArray(player_pos[0], player_pos[1], Range.Earshot.value)
-        target = 0
-
         target_arr = [target_id for target_id in agent_ids if self._is_target_correct_model_id(target_id, AgentModelID.SPIDER)]
         target_arr = AgentArray.Sort.ByDistance(target_arr, player_pos) 
 
         return target_arr[1] if len(target_arr) > 1 else target_arr[0] if target_arr else 0
 
+
+    def _SetupWatcher(self):
+        if self.status != DervBuildFarmStatus.Setup:
+            yield None
+            return
+
+
+        # Checks for defensive buffs
+        has_balth_spirit = Routines.Checks.Effects.HasBuff(GLOBAL_CACHE.Player.GetAgentID(), self.balthazars_spirit)
+        is_balth_spirit_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.balthazars_spirit)
+
+        # Apply defensive buffs if not already present
+        if is_balth_spirit_usable and not has_balth_spirit:
+            yield from Routines.Yield.Skills.CastSkillID(self.balthazars_spirit, aftercast_delay=1250)
 
     # Watcher routines
     # Watches dangerous conditions and applies defensive skills as needed
@@ -130,13 +142,30 @@ class DervSpiderFarmer(BuildMgr):
         is_iau_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.i_am_unstoppable)
         is_mirage_cloak_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.mirage_cloak)
 
-        if Agent.IsCrippled(player_agent_id) or self.build_danger_helper.check_cripple_kd(px, py):
+        # Mystic regen only during move and kill phases
+        if self.status in [DervBuildFarmStatus.Move, DervBuildFarmStatus.Kill]:
+            has_mystic_regen = Routines.Checks.Effects.HasBuff(GLOBAL_CACHE.Player.GetAgentID(), self.mystic_regen)
+            is_mystic_regen_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.mystic_regen)
 
+            if is_mystic_regen_usable and not has_mystic_regen:
+                yield from Routines.Yield.Skills.CastSkillID(self.mystic_regen, aftercast_delay=1250)
+
+
+        # Low health mirage cloak in case enemies are too far to detect with danger detector
+        if Agent.GetHealth(player_agent_id) <= 0.9 and is_mirage_cloak_usable:
+            yield from Routines.Yield.Skills.CastSkillID(self.mirage_cloak, aftercast_delay=200)
+
+
+        # Cripple danger handling
+        if Agent.IsCrippled(player_agent_id) or self.build_danger_helper.check_cripple_kd(px, py):
             if is_iau_usable and not has_iau:
                 yield from Routines.Yield.Skills.CastSkillID(self.i_am_unstoppable, aftercast_delay=200)
 
             if is_mirage_cloak_usable and not has_mirage_cloak:
                 yield from Routines.Yield.Skills.CastSkillID(self.mirage_cloak, aftercast_delay=200)
+
+        yield None
+
 
         # Anti cripple when IAU is down
         if Agent.IsCrippled(player_agent_id) and not has_iau and not is_iau_usable and self.status != DervBuildFarmStatus.Kill:
@@ -145,10 +174,6 @@ class DervSpiderFarmer(BuildMgr):
 
             if is_harriers_grasp_usable and not has_harriers_grasp:
                 yield from Routines.Yield.Skills.CastSkillID(self.harriers_grasp, aftercast_delay=200)
-
-        # Low health mirage cloak in case enemies are too far to detect with danger detector
-        if Agent.GetHealth(player_agent_id) <= 0.5 and is_mirage_cloak_usable:
-            yield from Routines.Yield.Skills.CastSkillID(self.mirage_cloak, aftercast_delay=200)
 
         yield None
 
@@ -216,17 +241,10 @@ class DervSpiderFarmer(BuildMgr):
 
 
             # Setup phase logic
-            if self.status == DervBuildFarmStatus.Setup:
-                self.spiked = False
-
-                # Checks for defensive buffs
-                has_balth_spirit = Routines.Checks.Effects.HasBuff(GLOBAL_CACHE.Player.GetAgentID(), self.balthazars_spirit)
-                is_balth_spirit_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.balthazars_spirit)
-
-                # Apply defensive buffs if not already present
-                if is_balth_spirit_usable and not has_balth_spirit:
-                    yield from Routines.Yield.Skills.CastSkillID(self.balthazars_spirit, aftercast_delay=1250)
+            yield from self._SetupWatcher()
             
+            # Skills usable in all phases but dependent on nearby enemies
+            yield from self._DefensiveWatcher()
 
             # General buff application during Move, Ball, and Kill statuses
             if self.status in [DervBuildFarmStatus.Move, DervBuildFarmStatus.Ball, DervBuildFarmStatus.Kill]:
@@ -237,22 +255,10 @@ class DervSpiderFarmer(BuildMgr):
                 # Drunken Master buff application
                 if is_drunken_master_usable and not has_drunken_master:
                     yield from Routines.Yield.Skills.CastSkillID(self.drunken_master, aftercast_delay=250)
-
-
-            # Defensive watcher only during move and kill phases
-            if self.status in [DervBuildFarmStatus.Move, DervBuildFarmStatus.Kill]:
-                has_mystic_regen = Routines.Checks.Effects.HasBuff(GLOBAL_CACHE.Player.GetAgentID(), self.mystic_regen)
-                is_mystic_regen_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.mystic_regen)
-
-                if is_mystic_regen_usable and not has_mystic_regen:
-                    yield from Routines.Yield.Skills.CastSkillID(self.mystic_regen, aftercast_delay=1250)
                 
 
             # Offensive watcher during kill phase spikes enemies
             yield from self._OffensiveWatcher()
-
-            # Skills usable in all phases but dependent on nearby enemies
-            yield from self._DefensiveWatcher()
 
 
             # Throttle loop
