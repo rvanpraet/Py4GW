@@ -1,5 +1,6 @@
-from typing import Iterable
 import Py4GW
+from math import floor, cos, sin, pi
+from typing import Iterable
 from Bots.Sasemoi.bot_helpers.bot_stuck_helper import BotStuckHelper
 from Bots.Sasemoi.utils.loot_filter_utils.magus_stone_loot_filters import get_valid_loot_array
 from Bots.marks_coding_corner.utils.loot_utils import is_valid_item
@@ -49,12 +50,23 @@ bot = Botting(
     config_log_actions=False,
 )
 
+
+# Custom stuck scenario for Magus Stone Derv Farm Bot
+is_movement_stuck = False
+custom_stuck_scenario = (
+    "Magus Stone Stuck Handler",
+    lambda bot=bot: movement_stuck_condition_fn(bot),
+    lambda: handle_movement_stuck()
+)
+
 # Would like to move this to Botting
 stuck_helper = BotStuckHelper(
     config={
         "log_enabled": False,
         "movement_timeout_ms": TIMEOUT_MS,
-        "movement_timeout_handler": lambda: handle_stuck()
+        "movement_timeout_handler": lambda: handle_stuck(),
+        "custom_scenarios": [custom_stuck_scenario],
+        "movement_not_moved_distance": 100
     }
 )
 
@@ -70,6 +82,13 @@ stuck_helper = BotStuckHelper(
 #     (HeroType.Melonni, "Ogmioys8cfpxAAAAAAAAAAAA")
 # ]
 
+
+
+
+
+
+# ==================== ROUTINE METHODS ==================== #
+
 #region routines
 def create_bot_routine(bot: Botting) -> None:
     InitBot(bot)
@@ -81,7 +100,7 @@ def create_bot_routine(bot: Botting) -> None:
 def InitBot(bot: Botting) -> None:
     bot.States.AddHeader("Init Party")
     bot.Map.Travel(RATA_SUM)
-    
+
     # Death callback
     condition = lambda: on_death(bot)
     bot.Events.OnDeathCallback(condition)
@@ -90,6 +109,8 @@ def InitBot(bot: Botting) -> None:
     bot.Properties.Disable("hero_ai")
     bot.Properties.Disable("auto_combat")
     bot.Properties.Disable("pause_on_danger")
+
+    bot.States.AddCustomState(lambda: EquipSkillBar(bot), "Equip Skill Bar")
 
     # MysticHealingSupport.SetupHealingParty(bot, hero_list=hero_template_list)
 
@@ -110,12 +131,12 @@ def MagusStoneRoutine(bot: Botting) -> None:
 
     # Set combat routine
     bot.config.set_pause_on_danger_fn(pause_on_danger_fn)
-    bot.Properties.Enable('auto_combat')
-    bot.Properties.Enable('pause_on_danger')
     bot.States.AddCustomState(lambda: stuck_helper.Toggle(True), "Activate Stuck Helper")
     bot.States.AddManagedCoroutine("Run Stuck Handler", run_stuck_helper)
     bot.States.AddManagedCoroutine("Setup loot handler", lambda: handle_loot(bot))
     bot.States.AddCustomState(lambda: use_alcohol(), "Use Alcohol")
+    bot.Properties.Enable('auto_combat')
+    bot.Properties.Enable('pause_on_danger')
     bot.Wait.ForTime(3000) # Wait for buffs to cast
 
     # bot.Properties.Enable("pause_on_danger")
@@ -163,6 +184,10 @@ def ResetFarmLoop(bot: Botting):
     # bot.States.JumpToStepName("[H]Barbarous Shore Running_6")
 
 
+
+
+# ==================== GENERAL SCRIPT METHODS ==================== #
+
 #region main methods
 # On Death Callback Routine
 def _on_death(bot: Botting):
@@ -189,18 +214,101 @@ def on_death(bot: Botting):
 
 
 def run_stuck_helper():
+    global is_movement_stuck
+
+    is_movement_stuck = False
     yield from stuck_helper.Run()
 
 
+# Ultimate stuck handler which resigns
 def handle_stuck():
     yield from Routines.Yield.Player.Resign()
     yield from Routines.Yield.wait(500)
+
+
+# Condition function for executing the early stuck movement helper
+def movement_stuck_condition_fn(bot: Botting):
+    global is_movement_stuck
+    global stuck_helper
+
+    return (
+        Map.GetMapID() == MAGUS_STONE and # Only in Magus Stone
+        not is_movement_stuck and # Not already stuck
+        isinstance(bot.config.build_handler, DervSpiderFarmer) and
+        bot.config.build_handler.status in [DervBuildFarmStatus.Move, DervBuildFarmStatus.Loot, DervBuildFarmStatus.Kill] and
+        not Agent.IsAttacking(GLOBAL_CACHE.Player.GetAgentID()) and
+        stuck_helper.movement_stuck_time / TIMEOUT_MS >= 0.15 # around 5 seconds of stuck time
+    )
+
+
+# Stuck handler which tries to move back and wiggle to unstuck
+def handle_movement_stuck():
+    global is_movement_stuck
+    global stuck_helper
+
+    # Dont execute if already stuck and running this fn
+    if is_movement_stuck:
+        yield None
+        return
+    
+    is_movement_stuck = True
+
+    # Calculate backpedal position
+    player_pos = GLOBAL_CACHE.Player.GetXY()
+    facing_direction = Agent.GetRotationAngle(GLOBAL_CACHE.Player.GetAgentID())
+    back_angle = facing_direction + pi  # 180° behind
+    back_distance = 200
+    back_offset_x = cos(back_angle) * back_distance
+    back_offset_y = sin(back_angle) * back_distance
+    back_x, back_y = (player_pos[0] + back_offset_x, player_pos[1] + back_offset_y)
+
+    # 2 seconds of movement unstuck attempts
+    attempt_timer = ThrottledTimer(2000)
+    attempt_timer.Start()
+    GLOBAL_CACHE.Player.SendChatCommand("stuck")
+
+    # Try to unstuck for 10 seconds
+    while not attempt_timer.IsExpired():
+        # Break early if map invalid or dead
+        if not Routines.Checks.Map.MapValid() or Agent.IsDead(GLOBAL_CACHE.Player.GetAgentID()):
+            ConsoleLog(SCRIPT_NAME, "Map invalid or player dead, breaking movement stuck loop", Py4GW.Console.MessageType.Debug)
+            # is_movement_stuck = False
+            yield None
+            break
+
+        # Break early if no longer stuck
+        if stuck_helper.movement_stuck_time < 1000:
+            ConsoleLog(SCRIPT_NAME, "Movement unstuck successful, resuming normal operation", Py4GW.Console.MessageType.Debug)
+            # is_movement_stuck = False
+            yield None
+            break
+
+        # Move to backwards position
+        for _ in range(9):
+            GLOBAL_CACHE.Player.Move(back_x, back_y)
+            # yield from Routines.Yield.wait(100)
+        
+        # Strafe left/right to wiggle
+        time_left = floor(attempt_timer.GetTimeRemaining() / 1000)
+        if time_left % 2 == 0:
+            yield from Routines.Yield.Movement.StrafeLeft(1000)
+        else : 
+            yield from Routines.Yield.Movement.StrafeRight(1000)
+
+
+    ConsoleLog(SCRIPT_NAME, "Unstuck attempts complete", Py4GW.Console.MessageType.Debug)
+    is_movement_stuck = False
+    yield None
 
 
 # Function passed to the pause_on_danger handler of the bot
 def pause_on_danger_fn():
     '''Detects if there is viable loot in the vicinity.'''
     global item_id_blacklist
+    global is_movement_stuck
+
+    if is_movement_stuck:
+        return True
 
     build = bot.config.build_handler
     if isinstance(build, DervSpiderFarmer) and build.status not in [DervBuildFarmStatus.Kill, DervBuildFarmStatus.Loot, DervBuildFarmStatus.Move, DervBuildFarmStatus.Wait]:
@@ -238,7 +346,7 @@ def execute_farm_routine(bot):
     timeout_timer = ThrottledTimer(30000) # 30sec
     timeout_timer.Start()
 
-    single_remaining_mob_timer = ThrottledTimer(10000) # Try to kill last remaining mob for 10sec
+    single_remaining_mob_timer = ThrottledTimer(15000) # Try to kill last remaining mob for 15sec
     single_remaining_mob_timer.Stop()
 
     player_id = GLOBAL_CACHE.Player.GetAgentID()
@@ -283,6 +391,9 @@ def execute_farm_routine(bot):
     is_farming = False
 
     yield from Routines.Yield.wait(100)
+
+def EquipSkillBar(bot: Botting):
+    yield from bot.config.build_handler.LoadSkillBar()
 
 
 # Coroutine function to handle looting
@@ -345,7 +456,7 @@ def wait_for_loot_to_finish():
 
 
 
-
+# ==================== HELPER METHODS ==================== #
 
 
 #region helper methods
@@ -375,9 +486,26 @@ def reset_item_blacklist():
     yield None
 
 
-# Use alcohol, make more generic to use all sorts of alcohol later
+# Single use alcohol function
 def use_alcohol():
-    yield from Routines.Yield.Items.UseItem(ModelID.Vial_Of_Absinthe.value)
+    alcohol_models = [
+        (m.value if hasattr(m, "value") else int(m))
+        for m in Routines.Yield.Upkeepers.ALCOHOL_ITEMS
+    ]
+
+    # Look for first available alcohol item
+    item_id = 0
+    for model_id in alcohol_models:
+        item_id = GLOBAL_CACHE.Inventory.GetFirstModelID(model_id)
+        if item_id:
+            break
+        
+    if item_id:
+        # nothing to use right now
+        GLOBAL_CACHE.Inventory.UseItem(item_id)
+        
+    yield from Routines.Yield.wait(500)
+    # yield from Routines.Yield.Items.UseItem(ModelID.Vial_Of_Absinthe.value)
 
 
 

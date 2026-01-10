@@ -58,6 +58,7 @@ class BotStuckHelper:
     def __name__(self) -> str:
         return "BotStuckHelper"
 
+
     # Private handlers for top-level checks (each is a generator so we can `yield from` them)
     def _check_map_valid(self):
         if not Routines.Checks.Map.MapValid():
@@ -67,12 +68,14 @@ class BotStuckHelper:
         # If map is valid this generator simply completes without yielding.
         return None
 
+
     def _check_player_dead(self):
         if Agent.IsDead(Player.GetAgentID()):
             ConsoleLog(self.name, "Player is dead, waiting...", Py4GW.Console.MessageType.Debug, self.log_enabled)
             yield from Routines.Yield.wait(1000)
         # Generator completes (returns None) when player is alive
         return None
+
 
     def _handle_movement_timeout(self):
         if self.movement_stuck_time >= self.MOVEMENT_TIMEOUT:
@@ -98,10 +101,15 @@ class BotStuckHelper:
 
         yield None
 
+
     def _scheduled_movement_check(self):
         if self.movement_timer.IsExpired():
             current_player_pos = Player.GetXY()
             ConsoleLog(self.name, f"Checking movement. Old pos: {self.prev_pos}, Current pos: {current_player_pos}", Py4GW.Console.MessageType.Debug, self.log_enabled)
+
+            # Reset counter if attacking
+            if Agent.IsAttacking(GLOBAL_CACHE.Player.GetAgentID()):
+                self.movement_stuck_time = 0
 
             # Check if player has not moved significantly
             if Utils.Distance(current_player_pos, self.prev_pos) < self.MOVEMENT_NOT_MOVED_DISTANCE:
@@ -116,10 +124,11 @@ class BotStuckHelper:
 
         yield None
 
+
     def _handle_custom_scenarios(self):
         for (handler_name, condition_fn, handler) in self.custom_scenarios:
             if condition_fn():
-                ConsoleLog(self.name, f"Executing stuck handler: {handler_name}", Py4GW.Console.MessageType.Debug, self.log_enabled)
+                ConsoleLog(self.name, f"Executing stuck handler: {handler_name}", Py4GW.Console.MessageType.Debug)
                 result = handler()
 
                 # if handler returns a generator/iterable, yield from it; otherwise yield the result
@@ -130,7 +139,7 @@ class BotStuckHelper:
                     yield None
 
                 # Break after handling one scenario to avoid multiple handlers in one cycle
-                self.is_active = False  # Optionally stop the helper after timeout handling
+                # self.is_active = False  # Optionally stop the helper after timeout handling
                 break
         yield None
 
@@ -147,7 +156,7 @@ class BotStuckHelper:
             yield from self._handle_movement_timeout()
             yield from self._scheduled_stuck_command()
             yield from self._scheduled_movement_check()
-            yield  # Yield to allow other routines to run in case none of the above yielded anything
+            yield from Routines.Yield.wait(100) # Throttle / Yield to allow other routines to run in case none of the above yielded anything
 
 
     def Toggle(self, enable: bool) -> None:
