@@ -52,6 +52,7 @@ bot = Botting(
 
 # Custom stuck scenario for Magus Stone Derv Farm Bot
 is_movement_stuck = False
+movement_stuck_counter = 0
 custom_stuck_scenario = (
     "Magus Stone Stuck Handler",
     lambda bot=bot: movement_stuck_condition_fn(bot),
@@ -65,7 +66,7 @@ stuck_helper = BotStuckHelper(
         "movement_timeout_ms": TIMEOUT_MS,
         "movement_timeout_handler": lambda: handle_stuck(),
         "custom_scenarios": [custom_stuck_scenario],
-        "movement_not_moved_distance": 100
+        "movement_not_moved_distance": 50,
     }
 )
 
@@ -243,8 +244,17 @@ def movement_stuck_condition_fn(bot: Botting):
 
 # Stuck handler which tries to move back and wiggle to unstuck
 def handle_movement_stuck():
-    global is_movement_stuck
     global stuck_helper
+    global is_movement_stuck
+    global movement_stuck_counter
+
+    # Limit number of unstuck attempts before giving up
+    if movement_stuck_counter >= 5:
+        ConsoleLog(SCRIPT_NAME, "Maximum movement unstuck attempts reached, resigning", Py4GW.Console.MessageType.Debug)
+        movement_stuck_counter = 0
+        is_movement_stuck = False
+        yield from Routines.Yield.Player.Resign()
+        return
 
     # Dont execute if already stuck and running this fn
     if is_movement_stuck:
@@ -257,7 +267,7 @@ def handle_movement_stuck():
     player_pos = GLOBAL_CACHE.Player.GetXY()
     facing_direction = Agent.GetRotationAngle(GLOBAL_CACHE.Player.GetAgentID())
     back_angle = facing_direction + pi  # 180° behind
-    back_distance = 200
+    back_distance = 300
     back_offset_x = cos(back_angle) * back_distance
     back_offset_y = sin(back_angle) * back_distance
     back_x, back_y = (player_pos[0] + back_offset_x, player_pos[1] + back_offset_y)
@@ -283,29 +293,23 @@ def handle_movement_stuck():
             yield None
             break
 
-        # Move to backwards position
-        for _ in range(9):
-            GLOBAL_CACHE.Player.Move(back_x, back_y)
-            # yield from Routines.Yield.wait(100)
+        GLOBAL_CACHE.Player.Move(back_x, back_y)
 
         new_player_pos = GLOBAL_CACHE.Player.GetXY()
         distance_moved = Utils.Distance(player_pos, new_player_pos)
 
-        if distance_moved >= 200:
+        if distance_moved >= 250:
             ConsoleLog(SCRIPT_NAME, f"Movement unstuck successful, moved {distance_moved} units", Py4GW.Console.MessageType.Debug)
 
-            # # Strafe left/right to wiggle
-            # time_left = floor(attempt_timer.GetTimeRemaining() / 1000)
-            # if time_left % 2 == 0:
-            #     yield from Routines.Yield.Movement.StrafeLeft(1000)
-            # else : 
-            #     yield from Routines.Yield.Movement.StrafeRight(1000)
-
-            yield None
+            movement_stuck_counter = 0
+            yield from Routines.Yield.Movement.StrafeLeft(1000)
             break
+
+        yield from Routines.Yield.wait(250)
 
 
     ConsoleLog(SCRIPT_NAME, "Unstuck attempts complete", Py4GW.Console.MessageType.Debug)
+    movement_stuck_counter += 1
     is_movement_stuck = False
     yield None
 
@@ -362,6 +366,10 @@ def execute_farm_routine(bot):
 
     while True:
         enemy_array = get_enemy_array(custom_range=Range.Earshot.value, detectable_collection=FOES_MODEL_IDS)
+        
+        if is_movement_stuck:
+            yield from Routines.Yield.wait(1000)
+
         if len(enemy_array) == 0:
             bot.config.build_handler.status = DervBuildFarmStatus.Move
             yield None
