@@ -152,7 +152,7 @@ class DervSpiderFarmer(BuildMgr):
 
 
         # Low health mirage cloak in case enemies are too far to detect with danger detector
-        if Agent.GetHealth(player_agent_id) <= 0.9 and is_mirage_cloak_usable:
+        if Agent.GetHealth(player_agent_id) <= 0.99 and is_mirage_cloak_usable:
             yield from Routines.Yield.Skills.CastSkillID(self.mirage_cloak, aftercast_delay=200)
 
 

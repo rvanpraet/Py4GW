@@ -273,12 +273,11 @@ def handle_movement_stuck():
     back_x, back_y = (player_pos[0] + back_offset_x, player_pos[1] + back_offset_y)
 
     # 2 seconds of movement unstuck attempts
-    attempt_timer = ThrottledTimer(2000)
-    attempt_timer.Start()
-    GLOBAL_CACHE.Player.SendChatCommand("stuck")
+    backward_timer = ThrottledTimer(2000)
+    backward_timer.Start()
 
     # Try to unstuck for 10 seconds
-    while not attempt_timer.IsExpired():
+    while not backward_timer.IsExpired():
         # Break early if map invalid or dead
         if not Routines.Checks.Map.MapValid() or Agent.IsDead(GLOBAL_CACHE.Player.GetAgentID()):
             ConsoleLog(SCRIPT_NAME, "Map invalid or player dead, breaking movement stuck loop", Py4GW.Console.MessageType.Debug)
@@ -302,11 +301,21 @@ def handle_movement_stuck():
             ConsoleLog(SCRIPT_NAME, f"Movement unstuck successful, moved {distance_moved} units", Py4GW.Console.MessageType.Debug)
 
             movement_stuck_counter = 0
-            yield from Routines.Yield.Movement.StrafeLeft(1000)
             break
 
         yield from Routines.Yield.wait(250)
 
+    # 2 seconds of movement unstuck attempts
+    wiggle_timer = ThrottledTimer(1000)
+    wiggle_timer.Start()
+    while not wiggle_timer.IsExpired():
+        direction = floor(wiggle_timer.GetTimeRemaining() / 250)
+        if direction % 2 == 0:
+            yield from Routines.Yield.Movement.StrafeLeft(250)
+        else:
+            yield from Routines.Yield.Movement.StrafeRight(250)
+
+        yield from Routines.Yield.wait(250)
 
     ConsoleLog(SCRIPT_NAME, "Unstuck attempts complete", Py4GW.Console.MessageType.Debug)
     movement_stuck_counter += 1
@@ -567,11 +576,6 @@ path_1 = [
     (18504.34, 3394.30, DervBuildFarmStatus.Ball, 0),
     (19004.04, 3309.77, DervBuildFarmStatus.Ball, 0), # Second back n forth to ball spider group 2
     (18504.34, 3394.30, DervBuildFarmStatus.Kill, 0),
-
-
-    # (18470.39, 3916.44, DervBuildFarmStatus.Kill), # Backup
-    #kill spiders
-    #loot
 ]
 
 path_2  = [
@@ -588,31 +592,16 @@ path_2  = [
 
     
     # Try to zigzag the narrow path
-    (17750.43, 367.06, DervBuildFarmStatus.Move, 0), # Hug left side of narrow path
-    (17418.65, 152.65, DervBuildFarmStatus.Move, 0), # Hug right side of narrow path
+    # (17750.43, 367.06, DervBuildFarmStatus.Move, 0), # Hug left side of narrow path
+    # (17418.65, 152.65, DervBuildFarmStatus.Move, 0), # Hug right side of narrow path
 
     # previous path
-    # (17665.95, 185.75, DervBuildFarmStatus.Move, 0), # Hug left side of narrow path
+    (17665.95, 185.75, DervBuildFarmStatus.Move, 0), # Hug left side of narrow path
     # (17381.34, -149.69, DervBuildFarmStatus.Move, 0), # Hug middle side of narrow path
     # (17560.50, -342.79, DervBuildFarmStatus.Move, 0), # More left side of narrow path
-    # (17279.21, -687.44, DervBuildFarmStatus.Ball, 0), # After narrow path
+    (17279.21, -687.44, DervBuildFarmStatus.Ball, 0), # After narrow path
 
 
     (17582.81, -3894.67, DervBuildFarmStatus.Ball, 1500), # First back n forth to ball spider group 2
     (16551.12, -2022.32, DervBuildFarmStatus.Kill, 350), # Last stop before killing routine (new)
-    # (17221.04, -3275.86, DervBuildFarmStatus.Ball, 0), # 
-    # (16925.17, -2726.17, DervBuildFarmStatus.Ball, 0),
-    # (17582.81, -3894.67, DervBuildFarmStatus.Ball, 0), # Second back n forth to ball spider group 2
-    # (16925.17, -2726.17, DervBuildFarmStatus.Kill, 1500), # Last stop before killing routine (before)
-    # (16077.05, -1530.15, DervBuildFarmStatus.Kill, 1500), # First back n forth to ball spider group 2 (very far end stop)
-
-    #kill spiders
-    #loot
-
-
-    # (17308.99, -2487.48, DervBuildFarmStatus.Ball), # First back n forth to ball spider group 2
-    # (16785.13, -2110.67, DervBuildFarmStatus.Ball),
-    # (17308.99, -2487.48, DervBuildFarmStatus.Ball), # Second back n forth to ball spider group 2
-    # (16785.13, -2110.67, DervBuildFarmStatus.Kill),
-
 ]
