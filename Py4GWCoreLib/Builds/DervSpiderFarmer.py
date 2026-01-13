@@ -247,7 +247,7 @@ class DervSpiderFarmer(BuildMgr):
             yield from self._DefensiveWatcher()
 
             # General buff application during Move, Ball, and Kill statuses
-            if self.status in [DervBuildFarmStatus.Move, DervBuildFarmStatus.Ball, DervBuildFarmStatus.Kill]:
+            if self.status in [DervBuildFarmStatus.Setup, DervBuildFarmStatus.Move, DervBuildFarmStatus.Ball, DervBuildFarmStatus.Kill]:
                 has_drunken_master = Routines.Checks.Effects.HasBuff(GLOBAL_CACHE.Player.GetAgentID(), self.drunken_master)
 
                 is_drunken_master_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.drunken_master)
