@@ -267,13 +267,13 @@ def handle_movement_stuck():
     player_pos = GLOBAL_CACHE.Player.GetXY()
     facing_direction = Agent.GetRotationAngle(GLOBAL_CACHE.Player.GetAgentID())
     back_angle = facing_direction + pi  # 180° behind
-    back_distance = 700
+    back_distance = 500
     back_offset_x = cos(back_angle) * back_distance
     back_offset_y = sin(back_angle) * back_distance
     back_x, back_y = (player_pos[0] + back_offset_x, player_pos[1] + back_offset_y)
 
-    # 2 seconds of movement unstuck attempts
-    backward_timer = ThrottledTimer(2000)
+    # 4 seconds of movement unstuck attempts
+    backward_timer = ThrottledTimer(3500)
     backward_timer.Start()
 
     # Try to unstuck for 10 seconds

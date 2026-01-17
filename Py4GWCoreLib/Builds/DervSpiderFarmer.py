@@ -143,7 +143,7 @@ class DervSpiderFarmer(BuildMgr):
         is_mirage_cloak_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.mirage_cloak)
 
         # Mystic regen only during move and kill phases
-        if self.status in [DervBuildFarmStatus.Move, DervBuildFarmStatus.Kill]:
+        if self.status in [DervBuildFarmStatus.Move, DervBuildFarmStatus.Kill] or self.status == DervBuildFarmStatus.Ball and Agent.GetHealth(player_agent_id) <= 0.65:
             has_mystic_regen = Routines.Checks.Effects.HasBuff(GLOBAL_CACHE.Player.GetAgentID(), self.mystic_regen)
             is_mystic_regen_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.mystic_regen)
 
