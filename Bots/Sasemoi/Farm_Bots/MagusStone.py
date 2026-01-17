@@ -267,7 +267,7 @@ def handle_movement_stuck():
     player_pos = GLOBAL_CACHE.Player.GetXY()
     facing_direction = Agent.GetRotationAngle(GLOBAL_CACHE.Player.GetAgentID())
     back_angle = facing_direction + pi  # 180° behind
-    back_distance = 300
+    back_distance = 700
     back_offset_x = cos(back_angle) * back_distance
     back_offset_y = sin(back_angle) * back_distance
     back_x, back_y = (player_pos[0] + back_offset_x, player_pos[1] + back_offset_y)
@@ -297,7 +297,7 @@ def handle_movement_stuck():
         new_player_pos = GLOBAL_CACHE.Player.GetXY()
         distance_moved = Utils.Distance(player_pos, new_player_pos)
 
-        if distance_moved >= 250:
+        if distance_moved >= back_distance * 0.95:  # Moved almost the full distance
             ConsoleLog(SCRIPT_NAME, f"Movement unstuck successful, moved {distance_moved} units", Py4GW.Console.MessageType.Debug)
 
             movement_stuck_counter = 0
@@ -305,17 +305,17 @@ def handle_movement_stuck():
 
         yield from Routines.Yield.wait(250)
 
-    # 2 seconds of movement unstuck attempts
-    wiggle_timer = ThrottledTimer(1000)
-    wiggle_timer.Start()
-    while not wiggle_timer.IsExpired():
-        direction = floor(wiggle_timer.GetTimeRemaining() / 250)
-        if direction % 2 == 0:
-            yield from Routines.Yield.Movement.StrafeLeft(250)
-        else:
-            yield from Routines.Yield.Movement.StrafeRight(250)
+    # # 2 seconds of movement unstuck attempts
+    # wiggle_timer = ThrottledTimer(1000)
+    # wiggle_timer.Start()
+    # while not wiggle_timer.IsExpired():
+    #     direction = floor(wiggle_timer.GetTimeRemaining() / 250)
+    #     if direction % 2 == 0:
+    #         yield from Routines.Yield.Movement.StrafeLeft(250)
+    #     else:
+    #         yield from Routines.Yield.Movement.StrafeRight(250)
 
-        yield from Routines.Yield.wait(250)
+    #     yield from Routines.Yield.wait(250)
 
     ConsoleLog(SCRIPT_NAME, "Unstuck attempts complete", Py4GW.Console.MessageType.Debug)
     movement_stuck_counter += 1

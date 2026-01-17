@@ -114,7 +114,7 @@ class DervSpiderFarmer(BuildMgr):
         target_arr = [target_id for target_id in agent_ids if self._is_target_correct_model_id(target_id, AgentModelID.SPIDER)]
         target_arr = AgentArray.Sort.ByDistance(target_arr, player_pos) 
 
-        return target_arr[1] if len(target_arr) > 1 else target_arr[0] if target_arr else 0
+        return target_arr[1] if len(target_arr) > 2 else target_arr[0] if target_arr else 0
 
 
     def _SetupWatcher(self):
