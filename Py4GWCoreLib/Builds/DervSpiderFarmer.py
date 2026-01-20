@@ -4,7 +4,6 @@ import random
 import Py4GW
 
 from Py4GWCoreLib import GLOBAL_CACHE
-from Py4GWCoreLib import ActionQueueManager
 from Py4GWCoreLib import AgentModelID
 from Py4GWCoreLib import BuildMgr
 from Py4GWCoreLib import Key
@@ -109,7 +108,7 @@ class DervSpiderFarmer(BuildMgr):
 
 
     def _get_next_target(self):
-        player_pos = GLOBAL_CACHE.Player.GetXY()
+        player_pos = Player.GetXY()
         agent_ids = Routines.Agents.GetFilteredEnemyArray(player_pos[0], player_pos[1], Range.Earshot.value)
         target_arr = [target_id for target_id in agent_ids if self._is_target_correct_model_id(target_id, AgentModelID.SPIDER)]
         target_arr = AgentArray.Sort.ByDistance(target_arr, player_pos) 
@@ -124,7 +123,7 @@ class DervSpiderFarmer(BuildMgr):
 
 
         # Checks for defensive buffs
-        has_balth_spirit = Routines.Checks.Effects.HasBuff(GLOBAL_CACHE.Player.GetAgentID(), self.balthazars_spirit)
+        has_balth_spirit = Routines.Checks.Effects.HasBuff(Player.GetAgentID(), self.balthazars_spirit)
         is_balth_spirit_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.balthazars_spirit)
 
         # Apply defensive buffs if not already present
@@ -134,8 +133,8 @@ class DervSpiderFarmer(BuildMgr):
     # Watcher routines
     # Watches dangerous conditions and applies defensive skills as needed
     def _DefensiveWatcher(self):
-        player_agent_id = GLOBAL_CACHE.Player.GetAgentID()
-        (px, py) = GLOBAL_CACHE.Player.GetXY()
+        player_agent_id = Player.GetAgentID()
+        (px, py) = Player.GetXY()
 
         has_iau = Routines.Checks.Effects.HasBuff(player_agent_id, self.i_am_unstoppable)
         has_mirage_cloak = Routines.Checks.Effects.HasBuff(player_agent_id, self.mirage_cloak)
@@ -144,7 +143,7 @@ class DervSpiderFarmer(BuildMgr):
 
         # Mystic regen only during move and kill phases
         if self.status in [DervBuildFarmStatus.Move, DervBuildFarmStatus.Kill] or self.status == DervBuildFarmStatus.Ball and Agent.GetHealth(player_agent_id) <= 0.65:
-            has_mystic_regen = Routines.Checks.Effects.HasBuff(GLOBAL_CACHE.Player.GetAgentID(), self.mystic_regen)
+            has_mystic_regen = Routines.Checks.Effects.HasBuff(Player.GetAgentID(), self.mystic_regen)
             is_mystic_regen_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.mystic_regen)
 
             if is_mystic_regen_usable and not has_mystic_regen:
@@ -185,7 +184,7 @@ class DervSpiderFarmer(BuildMgr):
             return
     
         # Get the next target
-        player_agent_id = GLOBAL_CACHE.Player.GetAgentID()
+        player_agent_id = Player.GetAgentID()
         next_target = self._get_next_target()
 
         # No target found, exit
@@ -223,7 +222,7 @@ class DervSpiderFarmer(BuildMgr):
             
 
             # Player is dead
-            if Agent.IsDead(GLOBAL_CACHE.Player.GetAgentID()):
+            if Agent.IsDead(Player.GetAgentID()):
                 yield from Routines.Yield.wait(1000)
                 continue
 
@@ -248,7 +247,7 @@ class DervSpiderFarmer(BuildMgr):
 
             # General buff application during Move, Ball, and Kill statuses
             if self.status in [DervBuildFarmStatus.Setup, DervBuildFarmStatus.Move, DervBuildFarmStatus.Ball, DervBuildFarmStatus.Kill]:
-                has_drunken_master = Routines.Checks.Effects.HasBuff(GLOBAL_CACHE.Player.GetAgentID(), self.drunken_master)
+                has_drunken_master = Routines.Checks.Effects.HasBuff(Player.GetAgentID(), self.drunken_master)
 
                 is_drunken_master_usable = yield from Routines.Yield.Skills.IsSkillIDUsable(self.drunken_master)
 

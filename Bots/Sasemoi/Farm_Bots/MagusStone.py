@@ -4,7 +4,7 @@ from typing import Iterable
 from Bots.Sasemoi.bot_helpers.bot_stuck_helper import BotStuckHelper
 from Bots.Sasemoi.utils.loot_filter_utils.magus_stone_loot_filters import get_valid_loot_array
 from Bots.marks_coding_corner.utils.loot_utils import is_valid_item
-from Py4GWCoreLib import Agent, Routines, ConsoleLog, Console
+from Py4GWCoreLib import Agent, Player, Routines, ConsoleLog, Console
 from Py4GWCoreLib import ThrottledTimer
 from Py4GWCoreLib import GLOBAL_CACHE, Map
 from Py4GWCoreLib import Botting, Utils
@@ -124,6 +124,7 @@ def SetupResign(bot: Botting):
 def MagusStoneRoutine(bot: Botting) -> None:
     bot.States.AddHeader("Running Routine")
     bot.States.AddCustomState(lambda: set_bot_status(bot, DervBuildFarmStatus.Setup), "Set Build Status to Setup")
+    bot.Move.XY(16399.63, 14085.72)
     bot.Move.XYAndExitMap(16387.96, 13047.04, target_map_id=MAGUS_STONE) # target_map_name="Barbarous Shore"
     bot.Wait.ForMapLoad(MAGUS_STONE)
     # MysticHealingSupport.InitHeroComanagedRoutines(bot, hero_list=hero_list)
@@ -176,7 +177,7 @@ def ResetFarmLoop(bot: Botting):
 
     bot.Party.Resign()
     bot.Wait.ForTime(3000)
-    bot.Wait.UntilCondition(lambda: Agent.IsDead(GLOBAL_CACHE.Player.GetAgentID()))
+    bot.Wait.UntilCondition(lambda: Agent.IsDead(Player.GetAgentID()))
     # bot.States.AddCustomState(lambda: AssessLootManagement(), "Loot management check")
     # bot.Wait.ForTime(10000)
     # bot.States.AddCustomState(lambda: ConditionallyMoveToMerchant(), "Move to merchant for inventory check")
@@ -237,7 +238,7 @@ def movement_stuck_condition_fn(bot: Botting):
         not is_movement_stuck and # Not already stuck
         isinstance(bot.config.build_handler, DervSpiderFarmer) and
         bot.config.build_handler.status in [DervBuildFarmStatus.Move, DervBuildFarmStatus.Loot, DervBuildFarmStatus.Kill] and
-        not Agent.IsAttacking(GLOBAL_CACHE.Player.GetAgentID()) and
+        not Agent.IsAttacking(Player.GetAgentID()) and
         stuck_helper.movement_stuck_time / TIMEOUT_MS >= 0.15 # around 5 seconds of stuck time
     )
 
@@ -264,8 +265,8 @@ def handle_movement_stuck():
     is_movement_stuck = True
 
     # Calculate backpedal position
-    player_pos = GLOBAL_CACHE.Player.GetXY()
-    facing_direction = Agent.GetRotationAngle(GLOBAL_CACHE.Player.GetAgentID())
+    player_pos = Player.GetXY()
+    facing_direction = Agent.GetRotationAngle(Player.GetAgentID())
     back_angle = facing_direction + pi  # 180° behind
     back_distance = 400
     back_offset_x = cos(back_angle) * back_distance
@@ -279,7 +280,7 @@ def handle_movement_stuck():
     # Try to unstuck for 10 seconds
     while not backward_timer.IsExpired():
         # Break early if map invalid or dead
-        if not Routines.Checks.Map.MapValid() or Agent.IsDead(GLOBAL_CACHE.Player.GetAgentID()):
+        if not Routines.Checks.Map.MapValid() or Agent.IsDead(Player.GetAgentID()):
             ConsoleLog(SCRIPT_NAME, "Map invalid or player dead, breaking movement stuck loop", Py4GW.Console.MessageType.Debug)
             # is_movement_stuck = False
             yield None
@@ -292,9 +293,9 @@ def handle_movement_stuck():
             yield None
             break
 
-        GLOBAL_CACHE.Player.Move(back_x, back_y)
+        Player.Move(back_x, back_y)
 
-        new_player_pos = GLOBAL_CACHE.Player.GetXY()
+        new_player_pos = Player.GetXY()
         distance_moved = Utils.Distance(player_pos, new_player_pos)
 
         if distance_moved >= back_distance * 0.95:  # Moved almost the full distance
@@ -371,7 +372,7 @@ def execute_farm_routine(bot):
     single_remaining_mob_timer = ThrottledTimer(15000) # Try to kill last remaining mob for 15sec
     single_remaining_mob_timer.Stop()
 
-    player_id = GLOBAL_CACHE.Player.GetAgentID()
+    player_id = Player.GetAgentID()
 
     while True:
         enemy_array = get_enemy_array(custom_range=Range.Earshot.value, detectable_collection=FOES_MODEL_IDS)
@@ -431,7 +432,7 @@ def handle_loot(bot: Botting):
             yield from Routines.Yield.wait(1000)
             continue
 
-        if Agent.IsDead(GLOBAL_CACHE.Player.GetAgentID()):
+        if Agent.IsDead(Player.GetAgentID()):
             yield from Routines.Yield.wait(1000)
             continue
 
@@ -487,7 +488,7 @@ def wait_for_loot_to_finish():
 
 #region helper methods
 def get_enemy_array(custom_range = Range.Area.value * 1.50, detectable_collection: Iterable[int] = []) -> list[int]:
-    px, py = GLOBAL_CACHE.Player.GetXY()
+    px, py = Player.GetXY()
     enemy_array = Routines.Agents.GetFilteredEnemyArray(px, py, custom_range)
     return [
         agent_id

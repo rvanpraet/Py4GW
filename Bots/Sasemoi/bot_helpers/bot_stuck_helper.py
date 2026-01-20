@@ -108,7 +108,7 @@ class BotStuckHelper:
             ConsoleLog(self.name, f"Checking movement. Old pos: {self.prev_pos}, Current pos: {current_player_pos}", Py4GW.Console.MessageType.Debug, self.log_enabled)
 
             # Reset counter if attacking
-            if Agent.IsAttacking(GLOBAL_CACHE.Player.GetAgentID()):
+            if Agent.IsAttacking(Player.GetAgentID()):
                 self.movement_stuck_time = 0
 
             # Check if player has not moved significantly
