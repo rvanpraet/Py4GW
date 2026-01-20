@@ -267,13 +267,13 @@ def handle_movement_stuck():
     player_pos = GLOBAL_CACHE.Player.GetXY()
     facing_direction = Agent.GetRotationAngle(GLOBAL_CACHE.Player.GetAgentID())
     back_angle = facing_direction + pi  # 180° behind
-    back_distance = 500
+    back_distance = 400
     back_offset_x = cos(back_angle) * back_distance
     back_offset_y = sin(back_angle) * back_distance
     back_x, back_y = (player_pos[0] + back_offset_x, player_pos[1] + back_offset_y)
 
     # 4 seconds of movement unstuck attempts
-    backward_timer = ThrottledTimer(3500)
+    backward_timer = ThrottledTimer(2500)
     backward_timer.Start()
 
     # Try to unstuck for 10 seconds
@@ -305,17 +305,17 @@ def handle_movement_stuck():
 
         yield from Routines.Yield.wait(250)
 
-    # # 2 seconds of movement unstuck attempts
-    # wiggle_timer = ThrottledTimer(1000)
-    # wiggle_timer.Start()
-    # while not wiggle_timer.IsExpired():
-    #     direction = floor(wiggle_timer.GetTimeRemaining() / 250)
-    #     if direction % 2 == 0:
-    #         yield from Routines.Yield.Movement.StrafeLeft(250)
-    #     else:
-    #         yield from Routines.Yield.Movement.StrafeRight(250)
+    # 2 seconds of movement unstuck attempts
+    wiggle_timer = ThrottledTimer(2000)
+    wiggle_timer.Start()
+    while not wiggle_timer.IsExpired():
+        direction = floor(wiggle_timer.GetTimeRemaining() / 500)
+        if direction % 2 == 0:
+            yield from Routines.Yield.Movement.StrafeLeft(500)
+        else:
+            yield from Routines.Yield.Movement.StrafeRight(500)
 
-    #     yield from Routines.Yield.wait(250)
+        yield from Routines.Yield.wait(100)
 
     ConsoleLog(SCRIPT_NAME, "Unstuck attempts complete", Py4GW.Console.MessageType.Debug)
     movement_stuck_counter += 1
