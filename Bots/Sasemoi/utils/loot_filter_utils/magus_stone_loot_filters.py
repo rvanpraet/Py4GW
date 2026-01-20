@@ -1,6 +1,6 @@
 from PyItem import Rarity
 from Bots.marks_coding_corner.utils.loot_utils import is_valid_item
-from Py4GWCoreLib import Agent, AgentArray, Item
+from Py4GWCoreLib import Agent, AgentArray, Item, Player
 from Py4GWCoreLib.GlobalCache import GLOBAL_CACHE
 from Py4GWCoreLib.enums_src.GameData_enums import Range
 from Py4GWCoreLib.enums_src.Model_enums import ModelID
@@ -31,7 +31,7 @@ def get_valid_loot_array(viable_loot=VIABLE_LOOT, loot_salvagables=False):
 
     # Create the lootarray filtered by distance
     loot_array = AgentArray.GetItemArray()
-    loot_array: list[int] = AgentArray.Filter.ByDistance(loot_array, GLOBAL_CACHE.Player.GetXY(), Range.Spellcast.value * 3.00)
+    loot_array: list[int] = AgentArray.Filter.ByDistance(loot_array, Player.GetXY(), Range.Spellcast.value * 3.00)
     
 
     # Create agent array filtered by viability
@@ -48,7 +48,7 @@ def get_valid_loot_array(viable_loot=VIABLE_LOOT, loot_salvagables=False):
     
     # Make unique and sort
     item_array = list(set(item_array_model + item_array_salv))
-    item_array: list[int] = AgentArray.Sort.ByDistance(item_array, GLOBAL_CACHE.Player.GetXY())
+    item_array: list[int] = AgentArray.Sort.ByDistance(item_array, Player.GetXY())
 
     return item_array
 
